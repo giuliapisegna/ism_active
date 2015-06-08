@@ -5,7 +5,9 @@
 #include "glsim/olconfiguration.hh"
 #include "glsim/interactions.hh"
 #include "glsim/mdenvironment.hh"
-#include "glsim/vverletmd.hh"
+#include "glsim/mdobservable.hh"
+#include "glsim/trajectory.hh"
+#include "glsim/md.hh"
 
 std::ostream& operator<<(std::ostream&o,double* d)
 {
@@ -38,7 +40,7 @@ private:
 
 Coulomb::Coulomb(const char *scope) :
   qmass{1.,1.},
-  Q{-.5,.5}
+  Q{.0,.0}
 {}
 
 void Coulomb::init(glsim::OLconfiguration &c)
@@ -77,7 +79,8 @@ public:
 
 CoulConf::CoulConf() :
   RAD(1.),
-  center{ {0,0,0}, {5,0,0} }
+  center{ {2,2,2}, {7,2,2} }
+  // center{ {0,0,0}, {5,0,0} }
 {
 }
 
@@ -86,9 +89,9 @@ void CoulConf::init(const char* s) {
     load(s);
     return;
   }
-  box_length[0]=100.;
-  box_length[1]=100.;
-  box_length[2]=100.;
+  box_length[0]=10.;
+  box_length[1]=10.;
+  box_length[2]=10.;
   box_angles[0]=90.;
   box_angles[1]=90.;
   box_angles[2]=90.;
@@ -126,9 +129,10 @@ void CoulConf::init(const char* s) {
  *
  */
 
-class ConstrainedMD : public glsim::VVerletMD {
+class ConstrainedMD : public glsim::MDSimulation {
 public:
   ConstrainedMD(glsim::MDEnvironment& e,CoulConf &c,glsim::Interactions *i);
+  const char* name() const {return "Constrainted";}
 
   void step();
 
@@ -142,7 +146,7 @@ private:
 
 ConstrainedMD::ConstrainedMD(glsim::MDEnvironment& e,CoulConf &c,
 			     glsim::Interactions *i) :
-  VVerletMD(e,c,i),
+  MDSimulation(e,c,i),
   env(e),
   conf(c),
   inter(i)
@@ -167,16 +171,19 @@ void ConstrainedMD::step()
   for (int i=0; i<conf.N; ++i) {
     double drc[3];
     double *r = conf.r[i];
-    drc[0] = r[0]-conf.center[i][0];
-    drc[1] = r[1]-conf.center[i][1];
-    drc[2] = r[2]-conf.center[i][2];
+    drc[0] = conf.ddiff(r[0],conf.center[i][0],conf.box_length[0]);
+    drc[1] = conf.ddiff(r[1],conf.center[i][1],conf.box_length[1]);
+    drc[2] = conf.ddiff(r[2],conf.center[i][2],conf.box_length[2]);
+    // drc[0] = r[0]-conf.center[i][0];
+    // drc[1] = r[1]-conf.center[i][1];
+    // drc[2] = r[2]-conf.center[i][2];
     double drcsq= drc[0]*drc[0] + drc[1]*drc[1] + drc[2]*drc[2];
     double gamma=conf.RAD/sqrt(drcsq);
     r[0]=conf.center[i][0]+gamma*drc[0];
     r[1]=conf.center[i][1]+gamma*drc[1];
     r[2]=conf.center[i][2]+gamma*drc[2];
   }
-  Epot=inter->acceleration_and_potential_energy(conf);
+  env.Epot=inter->acceleration_and_potential_energy(conf);
   for (int i=0; i<conf.N; ++i) {
     conf.v[i][0] += Dt2*conf.a[i][0];
     conf.v[i][1] += Dt2*conf.a[i][1];
@@ -186,9 +193,12 @@ void ConstrainedMD::step()
   for (int i=0; i<conf.N; ++i) {
     double drc[3];
     double *r = conf.r[i];
-    drc[0] = r[0]-conf.center[i][0];
-    drc[1] = r[1]-conf.center[i][1];
-    drc[2] = r[2]-conf.center[i][2];
+    // drc[0] = r[0]-conf.center[i][0];
+    // drc[1] = r[1]-conf.center[i][1];
+    // drc[2] = r[2]-conf.center[i][2];
+    drc[0] = conf.ddiff(r[0],conf.center[i][0],conf.box_length[0]);
+    drc[1] = conf.ddiff(r[1],conf.center[i][1],conf.box_length[1]);
+    drc[2] = conf.ddiff(r[2],conf.center[i][2],conf.box_length[2]);
     double gamma=(conf.v[i][0]*drc[0] + conf.v[i][1]*drc[1] + conf.v[i][2]*drc[2])
       /(conf.RAD*conf.RAD);
     conf.v[i][0]-=gamma*drc[0];
@@ -215,11 +225,15 @@ void wmain(int argc, char *argv[])
   glsim::MDEnvironment  env;
   CoulConf conf;
   Coulomb CP(env.scope());
+  glsim::MDObservable obs(env,conf);
+  glsim::Trajectory traj(env,conf,
+			 glsim::OLconfig_file::options().r_frame());
   glsim::SimulationCL CL("GS_ljmd","(C) 2015 Tomas S. Grigera",env.scope());
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 
   glsim::Interactions_isotropic_pairwise_naive<Coulomb> inter(CP,conf);
+  traj.observe_first();
   ConstrainedMD sim(env,conf,&inter);
   sim.run();
   env.save();
