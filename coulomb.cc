@@ -1,3 +1,16 @@
+/*
+ * coulomb.cc -- Two charged particles with spherical constraint
+ *
+ * This computes the trajectories of two point charges constrained to
+ * move on a spheric surface around given centers, while interacting
+ * with the Coulomb potential.  It is intended as a test for
+ * application of the RATTLE constraint algorithm to fix distances.
+ *
+ * Tomás S. Grigera <tgrigera@iflysib.unlp.edu.ar>
+ *
+ * La Plata, June 2015
+ *
+ */
 
 #include <limits.h>
 #include <math.h>
@@ -40,7 +53,7 @@ private:
 
 Coulomb::Coulomb(const char *scope) :
   qmass{1.,1.},
-  Q{.0,.0}
+  Q{5.,-5.}
 {}
 
 void Coulomb::init(glsim::OLconfiguration &c)
@@ -73,15 +86,16 @@ public:
   CoulConf();
   void init(const char* s);
 
-  double RAD;
+  double RAD,RADSQ;
   double center[2][3];
 } ;
 
 CoulConf::CoulConf() :
   RAD(1.),
   center{ {2,2,2}, {7,2,2} }
-  // center{ {0,0,0}, {5,0,0} }
+  // center{ {0,0,0}, {0,0,0} }
 {
+  RADSQ=RAD*RAD;
 }
 
 void CoulConf::init(const char* s) {
@@ -89,29 +103,29 @@ void CoulConf::init(const char* s) {
     load(s);
     return;
   }
-  box_length[0]=10.;
-  box_length[1]=10.;
-  box_length[2]=10.;
+  box_length[0]=100.;
+  box_length[1]=100.;
+  box_length[2]=100.;
   box_angles[0]=90.;
   box_angles[1]=90.;
   box_angles[2]=90.;
   N=2;
   if (r) delete[] r;
   r=new double[2][3];
-  r[0][0]=center[0][0]+RAD;
-  r[0][1]=center[0][1]+0;
+  r[0][0]=center[0][0]+0;
+  r[0][1]=center[0][1]+RAD;
   r[0][2]=center[0][2]+0;
-  r[1][0]=center[1][0]+RAD;
-  r[1][1]=center[1][1]+0;
+  r[1][0]=center[1][0]+0;
+  r[1][1]=center[1][1]+RAD;
   r[1][2]=center[1][2]+0;
   if (v) delete[] v;
   v=new double[2][3];
-  v[0][0]=0;
-  v[0][1]=RAD;
+  v[0][0]=-2.;
+  v[0][1]=0;
   v[0][2]=0;
-  v[1][0]=0;
-  v[1][1]=RAD;
-  v[1][2]=0;
+  v[1][0]=1;
+  v[1][1]=0;
+  v[1][2]=2;
   if (id) delete[] id;
   id=new short[2];
   id[0]=0;
@@ -141,7 +155,7 @@ private:
   CoulConf&               conf;
   glsim::Interactions     *inter;
 
-  double           Dt,Dt2,Dtsq2;
+  double           Dt,Dt2,Dtsq;
 } ;
 
 ConstrainedMD::ConstrainedMD(glsim::MDEnvironment& e,CoulConf &c,
@@ -153,57 +167,81 @@ ConstrainedMD::ConstrainedMD(glsim::MDEnvironment& e,CoulConf &c,
 {
   Dt=env.time_step;
   Dt2=Dt/2;
-  Dtsq2=Dt*Dt2;
+  Dtsq=Dt*Dt;
 }
 
 
+inline double dotp(double x[],double y[])
+{
+  return x[0]*y[0]+x[1]*y[1]+x[2]*y[2];
+}
+
+template <typename T> T sgn(T val) {
+    return (T(0) < val) - (val < T(0));
+}
+
 void ConstrainedMD::step()
 {
+  double xmC[3];
+  double xdotdx,dxsq;
+  double oneplushsqlambda;
+
+  // Step with RATTLE
   for (int i=0; i<conf.N; ++i) {
-    conf.r[i][0] += Dt*conf.v[i][0] + Dtsq2*conf.a[i][0];
-    conf.r[i][1] += Dt*conf.v[i][1] + Dtsq2*conf.a[i][1];
-    conf.r[i][2] += Dt*conf.v[i][2] + Dtsq2*conf.a[i][2];
+    // Partial update of v, now Delta x = Dt*v (w/ rattle corrections still missing)
     conf.v[i][0] += Dt2*conf.a[i][0];
     conf.v[i][1] += Dt2*conf.a[i][1];
     conf.v[i][2] += Dt2*conf.a[i][2];
+
+    // Compute rattle corrections (no need to iterate here)
+    xmC[0]=conf.r[i][0]-conf.center[i][0];
+    xmC[1]=conf.r[i][1]-conf.center[i][1];
+    xmC[2]=conf.r[i][2]-conf.center[i][2];
+
+    xdotdx = Dt*dotp(xmC,conf.v[i]);
+    dxsq = Dtsq*dotp(conf.v[i],conf.v[i]);
+
+    double a = conf.RADSQ;
+    double b = 2*xdotdx;
+    double c = dxsq-conf.RADSQ;
+    if (b==0)
+      oneplushsqlambda = sqrt(-c/a);
+    else {
+      double q = -0.5 * (b+sgn(b)*sqrt(b*b-4*a*c));
+      oneplushsqlambda = b>0 ? c/q : q/a;
+    }
+    double hlambda = (oneplushsqlambda -1)/Dt;
+
+    // Apply partial corrections to v
+    conf.v[i][0]+= hlambda * xmC[0];
+    conf.v[i][1]+= hlambda * xmC[1];
+    conf.v[i][2]+= hlambda * xmC[2];
+
+    // Now compute fully corrected x
+    conf.r[i][0] += Dt*conf.v[i][0];
+    conf.r[i][1] += Dt*conf.v[i][1];
+    conf.r[i][2] += Dt*conf.v[i][2];
   }
-  // Shake-like corections for r
-  for (int i=0; i<conf.N; ++i) {
-    double drc[3];
-    double *r = conf.r[i];
-    drc[0] = conf.ddiff(r[0],conf.center[i][0],conf.box_length[0]);
-    drc[1] = conf.ddiff(r[1],conf.center[i][1],conf.box_length[1]);
-    drc[2] = conf.ddiff(r[2],conf.center[i][2],conf.box_length[2]);
-    // drc[0] = r[0]-conf.center[i][0];
-    // drc[1] = r[1]-conf.center[i][1];
-    // drc[2] = r[2]-conf.center[i][2];
-    double drcsq= drc[0]*drc[0] + drc[1]*drc[1] + drc[2]*drc[2];
-    double gamma=conf.RAD/sqrt(drcsq);
-    r[0]=conf.center[i][0]+gamma*drc[0];
-    r[1]=conf.center[i][1]+gamma*drc[1];
-    r[2]=conf.center[i][2]+gamma*drc[2];
-  }
+
+  // Accelerations at next step
   env.Epot=inter->acceleration_and_potential_energy(conf);
+
+  // Now RATTLE for velocities
   for (int i=0; i<conf.N; ++i) {
+    // Partial update
     conf.v[i][0] += Dt2*conf.a[i][0];
     conf.v[i][1] += Dt2*conf.a[i][1];
     conf.v[i][2] += Dt2*conf.a[i][2];
-  }
-  // Shake-like corections for v
-  for (int i=0; i<conf.N; ++i) {
-    double drc[3];
-    double *r = conf.r[i];
-    // drc[0] = r[0]-conf.center[i][0];
-    // drc[1] = r[1]-conf.center[i][1];
-    // drc[2] = r[2]-conf.center[i][2];
-    drc[0] = conf.ddiff(r[0],conf.center[i][0],conf.box_length[0]);
-    drc[1] = conf.ddiff(r[1],conf.center[i][1],conf.box_length[1]);
-    drc[2] = conf.ddiff(r[2],conf.center[i][2],conf.box_length[2]);
-    double gamma=(conf.v[i][0]*drc[0] + conf.v[i][1]*drc[1] + conf.v[i][2]*drc[2])
-      /(conf.RAD*conf.RAD);
-    conf.v[i][0]-=gamma*drc[0];
-    conf.v[i][1]-=gamma*drc[1];
-    conf.v[i][2]-=gamma*drc[2];
+
+    // Now corrections
+    xmC[0]=conf.r[i][0]-conf.center[i][0];
+    xmC[1]=conf.r[i][1]-conf.center[i][1];
+    xmC[2]=conf.r[i][2]-conf.center[i][2];
+
+    double hgamma = - dotp(xmC,conf.v[i]) / conf.RADSQ;
+    conf.v[i][0] += hgamma * xmC[0];
+    conf.v[i][1] += hgamma * xmC[1];
+    conf.v[i][2] += hgamma * xmC[2];
   }
   inter->fold_coordinates(conf);
 
