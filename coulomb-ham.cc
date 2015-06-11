@@ -1,10 +1,8 @@
 /*
- * coulomb.cc -- Two charged particles with spherical constraint
+ * coulomb-ham.cc -- Two charged particles with spherical constraint
  *
- * This computes the trajectories of two point charges constrained to
- * move on a spheric surface around given centers, while interacting
- * with the Coulomb potential.  It is intended as a test for
- * application of the RATTLE constraint algorithm to fix distances.
+ * This integrates the equations of motion directly in the hamiltonian
+ * formulation.
  *
  * Tomás S. Grigera <tgrigera@iflysib.unlp.edu.ar>
  *
@@ -54,6 +52,7 @@ private:
 Coulomb::Coulomb(const char *scope) :
   qmass{1.,1.},
   Q{5.,-5.}
+  // Q{0.,0.}
 {}
 
 void Coulomb::init(glsim::OLconfiguration &c)
@@ -143,6 +142,13 @@ void CoulConf::init(const char* s) {
  *
  */
 
+void vprod(double *prod,double *a,double *b)
+{
+  prod[0]=a[1]*b[2] - a[2]*b[1];
+  prod[1]=a[2]*b[0] - a[0]*b[2];
+  prod[2]=a[0]*b[1] - a[1]*b[0];
+}
+
 class ConstrainedMD : public glsim::MDSimulation {
 public:
   ConstrainedMD(glsim::MDEnvironment& e,CoulConf &c,glsim::Interactions *i);
@@ -155,6 +161,9 @@ private:
   CoulConf&               conf;
   glsim::Interactions     *inter;
 
+  void log();
+
+  double            (*L)[3];
   double           Dt,Dt2,Dtsq;
 } ;
 
@@ -168,6 +177,16 @@ ConstrainedMD::ConstrainedMD(glsim::MDEnvironment& e,CoulConf &c,
   Dt=env.time_step;
   Dt2=Dt/2;
   Dtsq=Dt*Dt;
+
+  L=new double[conf.N][3];
+  for (int i=0; i<conf.N; ++i) {
+    double xmC[3];
+    xmC[0]=conf.r[i][0]-conf.center[i][0];
+    xmC[1]=conf.r[i][1]-conf.center[i][1];
+    xmC[2]=conf.r[i][2]-conf.center[i][2];
+    vprod(L[i],xmC,conf.v[i]);
+    L[i][0]*=inter->mass(conf.type[i]);
+  }
 }
 
 
@@ -180,68 +199,64 @@ template <typename T> T sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
+void rotate(double v[],double phi)
+{
+  double x,y; 
+
+  x = cos(phi) * v[0] - sin(phi) * v[1];
+  y = sin(phi) * v[0] + cos(phi) * v[1];
+  v[0]=x;
+  v[1]=y;
+}
+
 void ConstrainedMD::step()
 {
-  double xmC[3];
-  double xdotdx,dxsq;
-  double oneplushsqlambda;
+  double l[3],dl[3];
 
-  // Step with RATTLE
+  // Just 2 dimension for now
   for (int i=0; i<conf.N; ++i) {
-    // Partial update of v, now Delta x = Dt*v (w/ rattle corrections still missing)
-    conf.v[i][0] += Dt2*conf.a[i][0];
-    conf.v[i][1] += Dt2*conf.a[i][1];
-    conf.v[i][2] += Dt2*conf.a[i][2];
 
-    // Compute rattle corrections (no need to iterate here)
+    double xmC[3];
     xmC[0]=conf.r[i][0]-conf.center[i][0];
     xmC[1]=conf.r[i][1]-conf.center[i][1];
     xmC[2]=conf.r[i][2]-conf.center[i][2];
 
-    xdotdx = Dt*dotp(xmC,conf.v[i]);
-    dxsq = Dtsq*dotp(conf.v[i],conf.v[i]);
+    // double check=dotp(L[i],xmC);
+    // std::cerr << "L dot r " << check << "\n";
 
-    double a = conf.RADSQ;
-    double b = 2*xdotdx;
-    double c = dxsq-conf.RADSQ;
-    if (b==0)
-      oneplushsqlambda = sqrt(-c/a);
-    else {
-      double q = -0.5 * (b+sgn(b)*sqrt(b*b-4*a*c));
-      oneplushsqlambda = b>0 ? c/q : q/a;
-    }
-    double hlambda = (oneplushsqlambda -1)/Dt;
+    double I = inter->mass(conf.type[i]) * conf.RADSQ;
+    double phi = sqrt(dotp(L[i],L[i])) * Dt / I;
+    rotate(xmC,phi);
 
-    // Apply partial corrections to v
-    conf.v[i][0]+= hlambda * xmC[0];
-    conf.v[i][1]+= hlambda * xmC[1];
-    conf.v[i][2]+= hlambda * xmC[2];
-
-    // Now compute fully corrected x
-    conf.r[i][0] += Dt*conf.v[i][0];
-    conf.r[i][1] += Dt*conf.v[i][1];
-    conf.r[i][2] += Dt*conf.v[i][2];
+    conf.r[i][0] = conf.center[i][0] + xmC[0];
+    conf.r[i][1] = conf.center[i][1] + xmC[1];
+    conf.r[i][2] = conf.center[i][2] + xmC[2];
   }
 
-  // Accelerations at next step
-  env.Epot=inter->acceleration_and_potential_energy(conf);
 
-  // Now RATTLE for velocities
+  // Forces at next step
+  env.Epot=inter->force_and_potential_energy(conf);
+  // Update L
   for (int i=0; i<conf.N; ++i) {
-    // Partial update
-    conf.v[i][0] += Dt2*conf.a[i][0];
-    conf.v[i][1] += Dt2*conf.a[i][1];
-    conf.v[i][2] += Dt2*conf.a[i][2];
-
-    // Now corrections
+    double I = inter->mass(conf.type[i]) * conf.RADSQ;
+    double xmC[3];
     xmC[0]=conf.r[i][0]-conf.center[i][0];
     xmC[1]=conf.r[i][1]-conf.center[i][1];
     xmC[2]=conf.r[i][2]-conf.center[i][2];
 
-    double hgamma = - dotp(xmC,conf.v[i]) / conf.RADSQ;
-    conf.v[i][0] += hgamma * xmC[0];
-    conf.v[i][1] += hgamma * xmC[1];
-    conf.v[i][2] += hgamma * xmC[2];
+    vprod(dl,xmC,conf.a[i]);
+    L[i][0] += Dt * dl[0];
+    L[i][1] += Dt * dl[1];
+    L[i][2] += Dt * dl[2];
+
+    vprod(conf.v[i],L[i],xmC);
+    conf.v[i][0]/=I;
+    conf.v[i][1]/=I;
+    conf.v[i][2]/=I;
+
+    // double check=dotp(conf.v[i],xmC);
+    // std::cerr << "v dot r " << check << "\n";
+
   }
   inter->fold_coordinates(conf);
 
@@ -252,7 +267,21 @@ void ConstrainedMD::step()
   conf.step=env.steps_completed;
 }
 
+void ConstrainedMD::log()
+{
+  char buff[300];
 
+  double xmC[3];
+  xmC[0]=conf.r[0][0]-conf.center[0][0];
+  xmC[1]=conf.r[0][1]-conf.center[0][1];
+  xmC[2]=conf.r[0][2]-conf.center[0][2];
+
+  double ldotr = dotp(L[0],xmC);
+  double rsq = dotp(xmC,xmC);
+  sprintf(buff,"L=(%8.4e, %8.4e, %8.4e) rsq %8.4e L dot r = %8.4e\n",
+	  L[0][0],L[0][1],L[0][2],rsq,ldotr);
+  glsim::logs(glsim::info) << buff;
+}
 
 
 /*****************************************************************************/
