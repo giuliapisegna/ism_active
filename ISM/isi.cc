@@ -11,8 +11,6 @@
  *
  */
 
-#
-
 #include "3dvecs.hh"
 #include "isi.hh"
 
@@ -27,7 +25,7 @@ ISMParameters::ISMParameters(const char *scope) :
 {
   parameter_file_options().add_options()
     ("ISM.steps",po::value<int>()->required(),"Steps to run")
-    ("ISM.time_step",po::value<int>()->required(),"Delta t")
+    ("ISM.time_step",po::value<double>()->required(),"Delta t")
     ("ISM.fixed_graph",po::bool_switch()->required(),"False if birds are flying")
     ("ISM.v0",po::value<double>()->required(),"Speed")
     ("ISM.temperature",po::value<double>()->required(),"Temperature for dv/dt friction")
@@ -84,11 +82,24 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialI
 {
   env.total_number=conf.N;
   env.total_social_mass=0;
-  for (int i=0; i<conf.N; ++i) {
+  if (!conf.type) {
+    conf.type=new short[conf.N];
+    memset(conf.type,0,conf.N*sizeof(short));
+  }
+  for (int i=0; i<conf.N; ++i)
     env.total_social_mass+=inter->social_mass(conf.type[i]);
-    // env.Ptot[0]+=conf.v[i][0]*inter->mass(conf.type[i]);
-    // env.Ptot[1]+=conf.v[i][1]*inter->mass(conf.type[i]);
-    // env.Ptot[2]+=conf.v[i][2]*inter->mass(conf.type[i]);
+
+  if (conf.v==0) {
+    conf.v=new double[conf.N][3];
+    glsim::Spherical3d_distribution sr;
+    double u[3];
+    for (int i=0; i<conf.N; ++i) {
+      sr(u);
+      conf.v[i][0]=env.v0*u[0];
+      conf.v[i][1]=env.v0*u[1];
+      conf.v[i][2]=env.v0*u[2];
+    }
+    glsim::logs(glsim::info) << "Initialized velocities to random directions\n";
   }
 
   if (conf.a==0) {
@@ -97,16 +108,15 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialI
   }
   confb=new double[conf.N][3];
   env.social_potential_energy=inter->social_potential_energy_and_acceleration(conf,confb);
-  // env.Epot=inter->potential_energy(conf);
 
   conf.step=env.steps_completed;
   conf.time=env.time_completed;
-  //update_observables();
+  update_observables();
 
   // Constants for Langevin integration
   Dt=env.time_step;
-  double xDt = env.fixed_graph ? 0 : Dt;
-  double mass=inter->social_mass(0);
+  xDt = env.fixed_graph ? 0 : Dt;
+  mass=inter->social_mass(0);
   double xi=env.eta/mass;
   double xidt=xi*Dt;
   double c0l,c1,c2,sx,sv,rho;
@@ -138,7 +148,7 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialI
   c2dt=Dt*c2;
   c1mc2=c1-c2;
 
-  v0sq=0;
+  v0sq=env.v0*env.v0;
 }
 
 ISMSimulation::~ISMSimulation()
@@ -232,8 +242,8 @@ void ISMSimulation::step()
 void ISMSimulation::update_observables()
 {
   double V[3];
+
   env.social_kinetic_energy=0;
-  
   for (int i=0; i<conf.N; ++i) {
     V[0]+=conf.v[i][0];
     V[1]+=conf.v[i][1];
@@ -242,6 +252,7 @@ void ISMSimulation::update_observables()
   }
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
   env.social_kinetic_energy*=0.5;
+  env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
 }
 
 void ISMSimulation::log_start_sim()
@@ -249,7 +260,7 @@ void ISMSimulation::log_start_sim()
   char buff[300];
   
   Simulation::log_start_sim();
-  glsim::logs(glsim::info) << "    Step       Time    SocEpot    SocEkin    SocEtot         Phi\n";
+  glsim::logs(glsim::info) << "    Step       Time    SocEpot    SocEkin    SocEtot        Phi\n";
 
   sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
 	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,

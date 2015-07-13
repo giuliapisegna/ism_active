@@ -22,7 +22,7 @@
 
 class SocialInteractions {
 public:
-  SocialInteractions(glsim::OLconfiguration&) {}
+  SocialInteractions() {}
   virtual ~SocialInteractions() {}
 
   virtual double social_mass(short type) const=0;
@@ -49,14 +49,15 @@ public:
 
 class VicsekInteraction : public SocialInteractions {
 public:
-  VicsekInteraction(glsim::OLconfiguration&,glsim::NearestNeighbours *NN=0);
+  VicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
+		    glsim::NearestNeighbours *NN=0);
   double social_mass(short type) const {return mass;}
   double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
 
 private:
-  VicsekParameters  par;
+  VicsekParameters& par;
   double            mass,Jsv0sq,rc,rcsq;
   bool              metric;
 

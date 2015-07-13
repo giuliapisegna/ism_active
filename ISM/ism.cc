@@ -24,6 +24,7 @@ std::ostream& operator<<(std::ostream&o,double* d)
 void wmain(int argc, char *argv[])
 {
   ISMEnvironment  env;
+  VicsekParameters VP;
   glsim::OLconfiguration conf;
   // glsim::MDObservable obs(env,conf);
   // glsim::Trajectory traj(env,conf,
@@ -32,9 +33,9 @@ void wmain(int argc, char *argv[])
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 
-  VicsekInteraction inter(conf);
-  // traj.observe_first();
+  VicsekInteraction inter(VP,conf);
   ISMSimulation sim(env,conf,&inter);
+  // traj.observe_first();
   // obs.observe_first();
   sim.run();
   env.save();

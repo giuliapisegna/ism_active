@@ -22,12 +22,13 @@ VicsekParameters::VicsekParameters(const char* scope) :
     ;
 }
 
-VicsekInteraction::VicsekInteraction(glsim::OLconfiguration &c,glsim::NearestNeighbours *n) :
-  SocialInteractions(c),
-  par(scope)
+VicsekInteraction::VicsekInteraction(VicsekParameters &p,glsim::OLconfiguration &c,
+				     glsim::NearestNeighbours *n) :
+  SocialInteractions(),
+  par(p)
 {
   mass=par.value("Vicsek.mass").as<double>();
-  Jsv0sq=par.value("Vicsek.Joverv0sq").as<bool>();
+  Jsv0sq=par.value("Vicsek.Joverv0sq").as<double>();
   metric=par.value("Vicsek.metric").as<bool>();
   if (!metric) throw glsim::Unimplemented("Topological interactions");
   rc=par.value("Vicsek.cutoff").as<double>();
@@ -43,13 +44,16 @@ VicsekInteraction::VicsekInteraction(glsim::OLconfiguration &c,glsim::NearestNei
   NN->rebuild(c,rc);
 }
 
+/*
+   This is the social force, as is only good for metric interactions
+*/
 double VicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,
 								   double b[][3])
 {
   double E=0;
   memset(b,0,conf.N*3*sizeof(double));
 
-  double efac=0.5*Jsv0sq;
+  double efac=-Jsv0sq;
   double ffac=Jsv0sq/mass;
 
   for (auto p = NN->pair_begin(); p!=NN->pair_end(); ++p) {
