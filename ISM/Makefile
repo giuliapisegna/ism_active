@@ -13,7 +13,9 @@ LDLIBS=-lglsim_ol -lglsim -lhdf5 -lboost_serialization -lboost_timer -lboost_sys
 
 all: ism
 
-ism: ism.cc isi.cc social.cc
+ism: ism.o isi.o social.o
+	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS)
+
 
 
 

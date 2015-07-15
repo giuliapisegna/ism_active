@@ -48,7 +48,7 @@ public:
   int     total_number;
   double  total_social_mass;
   double  social_total_energy,social_potential_energy,social_kinetic_energy;
-  double  polarization;
+  double  polarization,v0sqave;
 
 protected:
   void    init_local() {SimEnvironment::init_local(); common_init();}

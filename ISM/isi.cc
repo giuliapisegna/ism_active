@@ -244,12 +244,16 @@ void ISMSimulation::update_observables()
   double V[3];
 
   env.social_kinetic_energy=0;
+  env.v0sqave=0;
   for (int i=0; i<conf.N; ++i) {
+    double vs=modsq(conf.v[i]);
+    env.v0sqave+=vs;
     V[0]+=conf.v[i][0];
     V[1]+=conf.v[i][1];
     V[2]+=conf.v[i][2];
     env.social_kinetic_energy+=inter->social_mass(conf.type[i])*modsq(conf.a[i]);
   }
+  env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
   env.social_kinetic_energy*=0.5;
   env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
@@ -260,11 +264,11 @@ void ISMSimulation::log_start_sim()
   char buff[300];
   
   Simulation::log_start_sim();
-  glsim::logs(glsim::info) << "    Step       Time    SocEpot    SocEkin    SocEtot        Phi\n";
+  glsim::logs(glsim::info) << "    Step       Time    SocEpot    SocEkin    SocEtot     <v0sq>        Phi\n";
 
-  sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
+  sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e %10.3e\n",
 	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,
-	  env.social_total_energy/conf.N,env.polarization/conf.N);
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -272,10 +276,10 @@ void ISMSimulation::log()
 {
   update_observables();
   static char buff[300];
-  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
 	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,
-	  env.social_total_energy/conf.N,env.polarization/conf.N);
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
   glsim::logs(glsim::info) << buff;
 }
 
