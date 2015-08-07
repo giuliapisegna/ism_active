@@ -27,7 +27,6 @@ ISMParameters::ISMParameters(const char *scope) :
     ("ISM.steps",po::value<int>()->required(),"Steps to run")
     ("ISM.time_step",po::value<double>()->required(),"Delta t")
     ("ISM.fixed_graph",po::bool_switch()->required(),"False if birds are flying")
-    ("ISM.v0",po::value<double>()->required(),"Speed")
     ("ISM.temperature",po::value<double>()->required(),"Temperature for dv/dt friction")
     ("ISM.eta",po::value<double>()->required(),"Friction coefficient")
     ;
@@ -38,7 +37,6 @@ ISMEnvironment::ISMEnvironment(const char* scope) :
   ISsteps(0),
   time_step(1e-5),
   fixed_graph(false),
-  v0(1.),
   temperature(1.),
   eta(1.),
   total_number(0),
@@ -53,7 +51,6 @@ void ISMEnvironment::common_init()
   ISsteps=par.value("ISM.steps").as<int>();
   fixed_graph=par.value("ISM.fixed_graph").as<bool>();
   time_step=par.value("ISM.time_step").as<double>();
-  v0=par.value("ISM.v0").as<double>();
   temperature=par.value("ISM.temperature").as<double>();
   eta=par.value("ISM.eta").as<double>();
 }
@@ -64,7 +61,7 @@ inline void ISMEnvironment::serialize(Archive &ar,const unsigned int version)
   if (version!=class_version)
     throw glsim::Environment_wrong_version("MDEnvironment",version,class_version);
   ar & boost::serialization::base_object<SimEnvironment>(*this);
-  ar & ISsteps & fixed_graph & time_step & v0 & temperature & eta;
+  ar & ISsteps & fixed_graph & time_step & temperature & eta;
 }
 
 /*****************************************************************************
@@ -73,7 +70,7 @@ inline void ISMEnvironment::serialize(Archive &ar,const unsigned int version)
  * 
  */
 
-ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialInteractions *i) :
+ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekInteraction *i) :
   Simulation(e,c),
   env(e),
   conf(c),
@@ -86,6 +83,9 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialI
     conf.type=new short[conf.N];
     memset(conf.type,0,conf.N*sizeof(short));
   }
+  env.v0=inter->speed();
+  v0sq=env.v0*env.v0;
+  env.social_mass[0]=inter->social_mass(0);
   for (int i=0; i<conf.N; ++i)
     env.total_social_mass+=inter->social_mass(conf.type[i]);
 
@@ -147,8 +147,6 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialI
   c1dt=Dt*c1;
   c2dt=Dt*c2;
   c1mc2=c1-c2;
-
-  v0sq=env.v0*env.v0;
 }
 
 ISMSimulation::~ISMSimulation()
@@ -241,10 +239,12 @@ void ISMSimulation::step()
 
 void ISMSimulation::update_observables()
 {
-  double V[3];
+  double V[3],S[3];
 
   env.social_kinetic_energy=0;
   env.v0sqave=0;
+  memset(env.spin,0,3*sizeof(double));
+  
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
     env.v0sqave+=vs;
@@ -252,11 +252,17 @@ void ISMSimulation::update_observables()
     V[1]+=conf.v[i][1];
     V[2]+=conf.v[i][2];
     env.social_kinetic_energy+=inter->social_mass(conf.type[i])*modsq(conf.a[i]);
+    vprod(S,conf.v[i],conf.a[i]);
+    env.spin[0]+=S[0];
+    env.spin[1]+=S[1];
+    env.spin[2]+=S[2];
   }
   env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
   env.social_kinetic_energy*=0.5;
   env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
+  env.spin[0]*=inter->social_mass(0);
+  env.spinsq=modsq(env.spin);
 }
 
 void ISMSimulation::log_start_sim()
@@ -264,11 +270,11 @@ void ISMSimulation::log_start_sim()
   char buff[300];
   
   Simulation::log_start_sim();
-  glsim::logs(glsim::info) << "    Step       Time    SocEpot    SocEkin    SocEtot     <v0sq>        Phi\n";
+  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi   <Stot^2>\n";
 
-  sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e %10.3e\n",
-	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,
-	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
+  sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
+	  env.spinsq);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -276,10 +282,81 @@ void ISMSimulation::log()
 {
   update_observables();
   static char buff[300];
-  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
-	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,
-	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
+	  env.spinsq);
   glsim::logs(glsim::info) << buff;
 }
 
+
+/******************************************************************************
+ *
+ * Observable
+ *
+ */
+
+ISMObservable_parameters::ISMObservable_parameters(const char* scope) :
+  glsim::Parameters(scope)
+{
+  parameter_file_options().add_options()
+    ("ISM.obs_interval",po::value<int>()->default_value(0),
+     "Interval for standard observation, 0=skip")
+    ("ISM.obs_file_prefix",po::value<std::string>(),"Observation file prefix")
+    ;
+}
+
+void ISMObservable::interval_and_file()
+{
+  obs_interval=par.value("ISM.obs_interval").as<int>();
+  obs_file_prefix=par.value("ISM.obs_file_prefix").as<std::string>();
+}
+
+void ISMObservable::write_header()
+{
+  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |---------- Total spin --------|\n");
+  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi         Sx         Sy         Sz\n");
+
+}
+
+void ISMObservable::observe()
+{
+  update();
+  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+	  env.steps_completed,env.time_completed,
+	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,env.social_total_energy/conf.N,
+	  env.v0sqave,env.Vcm[0],env.Vcm[1],env.Vcm[2],
+	  env.polarization,
+	  env.spin[0],env.spin[1],env.spin[2]);
+}
+
+void ISMObservable::update()
+{
+  double V[3],S[3];
+
+  env.social_kinetic_energy=0;
+  env.v0sqave=0;
+  memset(env.spin,0,3*sizeof(double));
+  
+  for (int i=0; i<conf.N; ++i) {
+    double vs=modsq(conf.v[i]);
+    env.v0sqave+=vs;
+    V[0]+=conf.v[i][0];
+    V[1]+=conf.v[i][1];
+    V[2]+=conf.v[i][2];
+    env.social_kinetic_energy+=env.social_mass[conf.type[i]]*modsq(conf.a[i]);
+    vprod(S,conf.v[i],conf.a[i]);
+    env.spin[0]+=S[0];
+    env.spin[1]+=S[1];
+    env.spin[2]+=S[2];
+  }
+  env.v0sqave/=conf.N;
+  env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
+  env.Vcm[0]=V[0]/conf.N;
+  env.Vcm[1]=V[1]/conf.N;
+  env.Vcm[2]=V[2]/conf.N;
+  env.social_kinetic_energy*=0.5;
+  env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
+  env.spin[0]*=env.social_mass[0];
+  env.spinsq=modsq(env.spin);
+}

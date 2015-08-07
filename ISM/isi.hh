@@ -18,6 +18,7 @@
 #include "glsim/stochastic.hh"
 #include "glsim/simulation.hh"
 #include "glsim/olconfiguration.hh"
+#include "glsim/observable.hh"
 #include "glsim/md.hh"
 
 #include "social.hh"
@@ -40,15 +41,19 @@ public:
   long    ISsteps;
   double  time_step;
   bool    fixed_graph;
-  double  v0;
   double  temperature;
   double  eta;
+
+  // System info
+  double  v0;
+  double  social_mass[2];
 
   // Observables
   int     total_number;
   double  total_social_mass;
   double  social_total_energy,social_potential_energy,social_kinetic_energy;
   double  polarization,v0sqave;
+  double  Vcm[3],spin[3],spinsq;
 
 protected:
   void    init_local() {SimEnvironment::init_local(); common_init();}
@@ -81,7 +86,7 @@ BOOST_CLASS_VERSION(ISMEnvironment,ISMEnvironment::class_version);
 
 class ISMSimulation : public glsim::Simulation {
 public:
-  ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,SocialInteractions *i);
+  ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekInteraction *i);
   ~ISMSimulation();
   const char* name() const {return "Inertial spin model";}
 
@@ -93,7 +98,7 @@ protected:
 
   ISMEnvironment&         env;
   glsim::OLconfiguration& conf;
-  SocialInteractions      *inter;
+  VicsekInteraction       *inter;
 
 private:
   double  (*confb)[3];
@@ -103,5 +108,38 @@ private:
 } ;
 
 
-#endif /* ISI_HH */
+/******************************************************************************
+ *
+ * Observable
+ *
+ */
 
+class ISMObservable_parameters : public glsim::Parameters {
+public:
+  ISMObservable_parameters(const char* scope);
+} ;
+
+class ISMObservable :  public glsim::SBObservable {
+public:
+  ISMObservable(ISMEnvironment&,glsim::OLconfiguration&);
+
+  void interval_and_file();
+  void write_header();
+  void observe();
+
+private:
+  ISMEnvironment  &env;
+  glsim::OLconfiguration &conf;
+  ISMObservable_parameters par;
+
+  void update();
+} ;
+
+inline ISMObservable::ISMObservable(ISMEnvironment& e,glsim::OLconfiguration &c) :
+  SBObservable(e),
+  env(e),
+  conf(c),
+  par(e.scope())
+{}
+
+#endif /* ISI_HH */

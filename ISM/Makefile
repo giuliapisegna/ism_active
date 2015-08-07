@@ -16,7 +16,7 @@ all: ism
 ism: ism.o isi.o social.o
 	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS)
 
-
+ism.o: ism.cc isi.hh
 
 
 

@@ -15,8 +15,9 @@ VicsekParameters::VicsekParameters(const char* scope) :
   Parameters(scope)
 {
   parameter_file_options().add_options()
-    ("Vicsek.mass",po::value<double>()->required())
-    ("Vicsek.Joverv0sq",po::value<double>()->required(),"Vicseck coupling constant J/v0^2")
+    ("Vicsek.v0",po::value<double>()->required(),"Modulus of velocity")
+    ("Vicsek.chi",po::value<double>()->required(),"Social moment of inertia (m*v0sq), actually in the inertial model rather than Vicsek")
+    ("Vicsek.J",po::value<double>()->required(),"Vicseck coupling constant")
     ("Vicsek.metric",po::bool_switch()->required(),"True for metric, false for topological interactions")
     ("Vicsek.cutoff",po::value<double>()->required(),"Cutoff for metric interactions")
     ;
@@ -27,8 +28,10 @@ VicsekInteraction::VicsekInteraction(VicsekParameters &p,glsim::OLconfiguration 
   SocialInteractions(),
   par(p)
 {
-  mass=par.value("Vicsek.mass").as<double>();
-  Jsv0sq=par.value("Vicsek.Joverv0sq").as<double>();
+  v0=par.value("Vicsek.v0").as<double>();
+  v0sq=v0*v0;
+  chi=par.value("Vicsek.chi").as<double>();
+  J=par.value("Vicsek.J").as<double>();
   metric=par.value("Vicsek.metric").as<bool>();
   if (!metric) throw glsim::Unimplemented("Topological interactions");
   rc=par.value("Vicsek.cutoff").as<double>();
@@ -45,7 +48,13 @@ VicsekInteraction::VicsekInteraction(VicsekParameters &p,glsim::OLconfiguration 
 }
 
 /*
-   This is the social force, as is only good for metric interactions
+   This is computes the social interactions, but only for the metric case.
+
+   This routine assumes that the input velocities have modulus v0 (the
+   modulus of the velocity is fixed in the Vicsek model).
+
+   Note that the acceleration can be computed as F/m or as v0sq*F/chi.
+
 */
 double VicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,
 								   double b[][3])
@@ -53,8 +62,8 @@ double VicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconf
   double E=0;
   memset(b,0,conf.N*3*sizeof(double));
 
-  double efac=-Jsv0sq;
-  double ffac=Jsv0sq/mass;
+  double efac=-J/v0sq;
+  double ffac=J/chi;
 
   for (auto p = NN->pair_begin(); p!=NN->pair_end(); ++p) {
 

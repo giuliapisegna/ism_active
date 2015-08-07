@@ -51,14 +51,15 @@ class VicsekInteraction : public SocialInteractions {
 public:
   VicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
 		    glsim::NearestNeighbours *NN=0);
-  double social_mass(short type) const {return mass;}
+  double social_mass(short type) const {return chi/v0sq;}
+  double speed(short type=0) const {return v0;}
   double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
 
 private:
   VicsekParameters& par;
-  double            mass,Jsv0sq,rc,rcsq;
+  double            chi,J,v0,v0sq,rc,rcsq;
   bool              metric;
 
   bool                     own_NN;
