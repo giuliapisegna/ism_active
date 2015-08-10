@@ -20,6 +20,13 @@ inline void vprod(double *prod,double *a,double *b)
   prod[2]=a[0]*b[1] - a[1]*b[0];
 }
 
+inline void normalize(double *v)
+{
+  double mod=sqrt(modsq(v));
+  v[0]/=mod;
+  v[1]/=mod;
+  v[2]/=mod;
+}
 
 #endif /* T3DVECS_HH */
 
