@@ -20,6 +20,7 @@
 #include "glsim/olconfiguration.hh"
 #include "glsim/observable.hh"
 #include "glsim/md.hh"
+#include "glsim/avevar.hh"
 
 #include "social.hh"
 
@@ -53,7 +54,8 @@ public:
   double  total_social_mass;
   double  social_total_energy,social_potential_energy,social_kinetic_energy;
   double  polarization,v0sqave;
-  double  Vcm[3],spin[3],spinsq;
+  double  Vcm[3],total_spin[3],total_spinsq;
+  glsim::AveVar<true> spinsqavar;
 
 protected:
   void    init_local() {SimEnvironment::init_local(); common_init();}

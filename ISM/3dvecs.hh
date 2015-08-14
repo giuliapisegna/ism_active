@@ -1,4 +1,4 @@
-
+#include <math.h>
 
 #ifndef T3DVECS_HH
 #define T3DVECS_HH

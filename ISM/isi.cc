@@ -243,8 +243,8 @@ void ISMSimulation::update_observables()
 
   env.social_kinetic_energy=0;
   env.v0sqave=0;
-  memset(env.spin,0,3*sizeof(double));
-  
+  memset(env.total_spin,0,3*sizeof(double));
+    
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
     env.v0sqave+=vs;
@@ -253,16 +253,18 @@ void ISMSimulation::update_observables()
     V[2]+=conf.v[i][2];
     env.social_kinetic_energy+=inter->social_mass(conf.type[i])*modsq(conf.a[i]);
     vprod(S,conf.v[i],conf.a[i]);
-    env.spin[0]+=S[0];
-    env.spin[1]+=S[1];
-    env.spin[2]+=S[2];
+    S[0]*=inter->social_mass(0);
+    S[1]*=inter->social_mass(0);
+    S[2]*=inter->social_mass(0);
+    env.total_spin[0]+=S[0];
+    env.total_spin[1]+=S[1];
+    env.total_spin[2]+=S[2];
   }
   env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
   env.social_kinetic_energy*=0.5;
   env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
-  env.spin[0]*=inter->social_mass(0);
-  env.spinsq=modsq(env.spin);
+  env.total_spinsq=modsq(env.total_spin);
 }
 
 void ISMSimulation::log_start_sim()
@@ -274,7 +276,7 @@ void ISMSimulation::log_start_sim()
 
   sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
 	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
-	  env.spinsq);
+	  env.total_spinsq);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -285,7 +287,7 @@ void ISMSimulation::log()
   sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
 	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
-	  env.spinsq);
+	  env.total_spinsq);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -314,20 +316,21 @@ void ISMObservable::interval_and_file()
 
 void ISMObservable::write_header()
 {
-  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |---------- Total spin --------|\n");
-  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi         Sx         Sy         Sz\n");
+  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |---------- Total spin --------|  |---------- Spin (single conf) ----------|\n");
+  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi         Sx         Sy         Sz    Average   Variance        Min        Max\n");
 
 }
 
 void ISMObservable::observe()
 {
   update();
-  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
 	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,env.social_total_energy/conf.N,
 	  env.v0sqave,env.Vcm[0],env.Vcm[1],env.Vcm[2],
 	  env.polarization,
-	  env.spin[0],env.spin[1],env.spin[2]);
+	  env.total_spin[0],env.total_spin[1],env.total_spin[2],
+	  env.spinsqavar.ave(),env.spinsqavar.var(),env.spinsqavar.min(),env.spinsqavar.max());
 }
 
 void ISMObservable::update()
@@ -336,7 +339,8 @@ void ISMObservable::update()
 
   env.social_kinetic_energy=0;
   env.v0sqave=0;
-  memset(env.spin,0,3*sizeof(double));
+  memset(env.total_spin,0,3*sizeof(double));
+  env.spinsqavar.clear();
   
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
@@ -346,9 +350,13 @@ void ISMObservable::update()
     V[2]+=conf.v[i][2];
     env.social_kinetic_energy+=env.social_mass[conf.type[i]]*modsq(conf.a[i]);
     vprod(S,conf.v[i],conf.a[i]);
-    env.spin[0]+=S[0];
-    env.spin[1]+=S[1];
-    env.spin[2]+=S[2];
+    S[0]*=env.social_mass[0];
+    S[1]*=env.social_mass[0];
+    S[2]*=env.social_mass[0];
+    env.total_spin[0]+=S[0];
+    env.total_spin[1]+=S[1];
+    env.total_spin[2]+=S[2];
+    env.spinsqavar.push(modsq(S));
   }
   env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
@@ -357,6 +365,5 @@ void ISMObservable::update()
   env.Vcm[2]=V[2]/conf.N;
   env.social_kinetic_energy*=0.5;
   env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
-  env.spin[0]*=env.social_mass[0];
-  env.spinsq=modsq(env.spin);
+  env.total_spinsq=modsq(env.total_spin);
 }
