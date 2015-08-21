@@ -244,6 +244,7 @@ void ISMSimulation::update_observables()
   env.social_kinetic_energy=0;
   env.v0sqave=0;
   memset(env.total_spin,0,3*sizeof(double));
+  memset(V,0,3*sizeof(double));
     
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
@@ -316,6 +317,7 @@ void ISMObservable::interval_and_file()
 
 void ISMObservable::write_header()
 {
+  fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |    (10)| |    (11)| |    (12)| |    (13)| |    (14)| |    (15)| |    (16)| |    (17)|\n");
   fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |---------- Total spin --------|  |---------- Spin (single conf) ----------|\n");
   fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi         Sx         Sy         Sz    Average   Variance        Min        Max\n");
 
@@ -340,6 +342,7 @@ void ISMObservable::update()
   env.social_kinetic_energy=0;
   env.v0sqave=0;
   memset(env.total_spin,0,3*sizeof(double));
+  memset(V,0,3*sizeof(double));
   env.spinsqavar.clear();
   
   for (int i=0; i<conf.N; ++i) {
