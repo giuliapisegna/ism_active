@@ -29,7 +29,7 @@ void wmain(int argc, char *argv[])
   ISMObservable obs(env,conf);
   // glsim::Trajectory traj(env,conf,
   // 			 glsim::OLconfig_file::options().r_frame());
-  glsim::SimulationCL CL("GS_ljmd","(C) 2015 Tomas S. Grigera",env.scope());
+  glsim::SimulationCL CL("ism (inertial spin model)","(C) 2015 Tomas S. Grigera",env.scope());
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 

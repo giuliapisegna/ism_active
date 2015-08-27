@@ -29,6 +29,7 @@ ISMParameters::ISMParameters(const char *scope) :
     ("ISM.fixed_graph",po::bool_switch()->required(),"False if birds are flying")
     ("ISM.temperature",po::value<double>()->required(),"Temperature for dv/dt friction")
     ("ISM.eta",po::value<double>()->required(),"Friction coefficient")
+    ("ISM.rescale_v0",po::bool_switch()->default_value(false),"If true, rescale speed to v0 before first step")
     ;
 }
 
@@ -53,6 +54,7 @@ void ISMEnvironment::common_init()
   time_step=par.value("ISM.time_step").as<double>();
   temperature=par.value("ISM.temperature").as<double>();
   eta=par.value("ISM.eta").as<double>();
+  rescale_v0=par.value("ISM.rescale_v0").as<bool>();
 }
 
 template <typename Archive>
@@ -100,6 +102,13 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
       conf.v[i][2]=env.v0*u[2];
     }
     glsim::logs(glsim::info) << "Initialized velocities to random directions\n";
+  } else if (env.rescale_v0) {
+    for (int i=0; i<conf.N; ++i) {
+      double v0=sqrt(modsq(conf.v[i]));
+      conf.v[i][0]*=env.v0/v0;
+      conf.v[i][1]*=env.v0/v0;
+      conf.v[i][2]*=env.v0/v0;
+    }
   }
 
   if (conf.a==0) {

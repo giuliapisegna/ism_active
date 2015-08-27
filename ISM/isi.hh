@@ -44,6 +44,7 @@ public:
   bool    fixed_graph;
   double  temperature;
   double  eta;
+  bool    rescale_v0;
 
   // System info
   double  v0;
