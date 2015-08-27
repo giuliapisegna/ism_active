@@ -126,7 +126,8 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
   Dt=env.time_step;
   xDt = env.fixed_graph ? 0 : Dt;
   mass=inter->social_mass(0);
-  double xi=env.eta/mass;
+  double etasv0=env.eta/v0sq;   // Because in the ISM friction is actually rotational friction
+  double xi=etasv0/mass;
   double xidt=xi*Dt;
   double c0l,c1,c2,sx,sv,rho;
   double exi=exp(-xidt);
@@ -144,10 +145,10 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
   }
   sa=(env.temperature/mass)*(1-exi*exi);
   sa=sqrt(sa);
-  if (env.eta<1e-3) {
-    sv=env.temperature*Dt*Dt*Dt*env.eta*(2./3.-0.5*xidt)/(mass*mass);
+  if (etasv0<1e-3) {
+    sv=env.temperature*Dt*Dt*Dt*etasv0*(2./3.-0.5*xidt)/(mass*mass);
   } else {
-    sv=(env.temperature/env.eta)*(2*Dt-(3-4*exi+exi*exi)/xi);
+    sv=(env.temperature/etasv0)*(2*Dt-(3-4*exi+exi*exi)/xi);
   }
   sv=sqrt(sv);
   noise=new glsim::BivariateGaussian_distribution(sv,sa,rho);
