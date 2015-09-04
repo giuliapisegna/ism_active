@@ -17,7 +17,7 @@ void wmain(int argc, char *argv[])
   VicsekEnvironment  env;
   VicsekParameters VP;
   glsim::OLconfiguration conf;
-  ISMObservable obs(env,conf);
+  VicsekObservable obs(env,conf);
   // glsim::Trajectory traj(env,conf,
   // 			 glsim::OLconfig_file::options().r_frame());
   glsim::SimulationCL CL("vicsek (Vicsek's model)","(C) 2015 Tomas S. Grigera",env.scope());
@@ -26,7 +26,7 @@ void wmain(int argc, char *argv[])
 
   VicsekInteraction inter(VP,conf);
   VicsekSimulation sim(env,conf,&inter);
-  // traj.observe_first();
+  // // traj.observe_first();
   obs.observe_first();
   sim.run();
   env.save();

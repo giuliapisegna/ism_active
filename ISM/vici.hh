@@ -45,7 +45,7 @@ public:
   double  time_step;
   bool    fixed_graph;
   double  temperature;
-  double  eta;
+  // double  eta;
   bool    rescale_v0;
 
   // System info
@@ -119,14 +119,14 @@ private:
  *
  */
 
-class ISMObservable_parameters : public glsim::Parameters {
+class VicsekObservable_parameters : public glsim::Parameters {
 public:
-  ISMObservable_parameters(const char* scope);
+  VicsekObservable_parameters(const char* scope);
 } ;
 
-class ISMObservable :  public glsim::SBObservable {
+class VicsekObservable :  public glsim::SBObservable {
 public:
-  ISMObservable(VicsekEnvironment&,glsim::OLconfiguration&);
+  VicsekObservable(VicsekEnvironment&,glsim::OLconfiguration&);
 
   void interval_and_file();
   void write_header();
@@ -135,12 +135,12 @@ public:
 private:
   VicsekEnvironment  &env;
   glsim::OLconfiguration &conf;
-  ISMObservable_parameters par;
+  VicsekObservable_parameters par;
 
   void update();
 } ;
 
-inline ISMObservable::ISMObservable(VicsekEnvironment& e,glsim::OLconfiguration &c) :
+inline VicsekObservable::VicsekObservable(VicsekEnvironment& e,glsim::OLconfiguration &c) :
   SBObservable(e),
   env(e),
   conf(c),

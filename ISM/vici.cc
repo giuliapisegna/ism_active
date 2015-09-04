@@ -31,7 +31,7 @@ VicsekIntegratorParameters::VicsekIntegratorParameters(const char *scope) :
     ("VicsekI.time_step",po::value<double>()->required(),"Delta t")
     ("VicsekI.fixed_graph",po::bool_switch()->required(),"False if birds are flying")
     ("VicsekI.temperature",po::value<double>()->required(),"Temperature for dv/dt friction")
-    ("VicsekI.eta",po::value<double>()->required(),"Friction coefficient")
+    //    ("VicsekI.eta",po::value<double>()->required(),"Friction coefficient")
     ("VicsekI.rescale_v0",po::bool_switch()->default_value(false),"If true, rescale speed to v0 before first step")
     ;
 }
@@ -42,7 +42,7 @@ VicsekEnvironment::VicsekEnvironment(const char* scope) :
   time_step(1e-5),
   fixed_graph(false),
   temperature(1.),
-  eta(1.),
+  //  eta(1.),
   total_number(0),
   total_social_mass(0),
   polarization(0),
@@ -56,7 +56,7 @@ void VicsekEnvironment::common_init()
   fixed_graph=par.value("VicsekI.fixed_graph").as<bool>();
   time_step=par.value("VicsekI.time_step").as<double>();
   temperature=par.value("VicsekI.temperature").as<double>();
-  eta=par.value("VicsekI.eta").as<double>();
+  //  eta=par.value("VicsekI.eta").as<double>();
   rescale_v0=par.value("VicsekI.rescale_v0").as<bool>();
 }
 
@@ -66,7 +66,7 @@ inline void VicsekEnvironment::serialize(Archive &ar,const unsigned int version)
   if (version!=class_version)
     throw glsim::Environment_wrong_version("MDEnvironment",version,class_version);
   ar & boost::serialization::base_object<SimEnvironment>(*this);
-  ar & VSsteps & fixed_graph & time_step & temperature & eta;
+  ar & VSsteps & fixed_graph & time_step & temperature; // & eta;
 }
 
 /*****************************************************************************
@@ -134,32 +134,34 @@ VicsekSimulation::VicsekSimulation(VicsekEnvironment& e,
   Dt=env.time_step;
   xDt = env.fixed_graph ? 0 : Dt;
   mass=inter->social_mass(0);
-  double etasv0=env.eta/v0sq;   // Because in the Vicsek friction is actually rotational friction
-  double xi=etasv0/mass;
-  double xidt=xi*Dt;
-  double c0l,c1,c2,sx,sv,rho;
-  double exi=exp(-xidt);
-  if (xidt<1e-3) {
-    c0l=1 - xidt + xidt*xidt/2 - xidt*xidt*xidt/6;
-    c1=1 - xidt/2 + xidt*xidt/6 - xidt*xidt*xidt/24;
-    c2=0.5 - xidt/6 + xidt*xidt/24;
-    rho=sqrt(3.)*(0.5-xidt/16.-(17./1280.)*xidt*xidt
-		  +(17./6144)*xidt*xidt*xidt);
-  } else {
-    c0l=exi;
-    c1=(1-c0l)/xidt;
-    c2=(1-c1)/xidt;
-    rho=(1-exi)*(1-exi)/sqrt( (1-exi*exi)*(3*xidt-3+4*exi-exi*exi) );
-  }
-  sa=(env.temperature/mass)*(1-exi*exi);
-  sa=sqrt(sa);
-  if (etasv0<1e-3) {
-    sv=env.temperature*Dt*Dt*Dt*etasv0*(2./3.-0.5*xidt)/(mass*mass);
-  } else {
-    sv=(env.temperature/etasv0)*(2*Dt-(3-4*exi+exi*exi)/xi);
-  }
-  sv=sqrt(sv);
+  double etasv0=1./v0sq;   // Because in the Vicsek friction is actually rotational friction
+                           // and here eta=1 (overdamped, time rescaling)
+  // double xi=1./(v0sq*mass);
+  // double xidt=xi*Dt;
+  double sigma=2*env.temperature*Dt/etasv0;
   noise=new glsim::Gaussian_distribution(sigma,0);
+  // double c0l,c1,c2,sx,sv,rho;
+  // double exi=exp(-xidt);
+  // if (xidt<1e-3) {
+  //   c0l=1 - xidt + xidt*xidt/2 - xidt*xidt*xidt/6;
+  //   c1=1 - xidt/2 + xidt*xidt/6 - xidt*xidt*xidt/24;
+  //   c2=0.5 - xidt/6 + xidt*xidt/24;
+  //   rho=sqrt(3.)*(0.5-xidt/16.-(17./1280.)*xidt*xidt
+  // 		  +(17./6144)*xidt*xidt*xidt);
+  // } else {
+  //   c0l=exi;
+  //   c1=(1-c0l)/xidt;
+  //   c2=(1-c1)/xidt;
+  //   rho=(1-exi)*(1-exi)/sqrt( (1-exi*exi)*(3*xidt-3+4*exi-exi*exi) );
+  // }
+  // sa=(env.temperature/mass)*(1-exi*exi);
+  // sa=sqrt(sa);
+  // if (etasv0<1e-3) {
+  //   sv=env.temperature*Dt*Dt*Dt*etasv0*(2./3.-0.5*xidt)/(mass*mass);
+  // } else {
+  //   sv=(env.temperature/etasv0)*(2*Dt-(3-4*exi+exi*exi)/xi);
+  // }
+  // sv=sqrt(sv);
 }
 
 VicsekSimulation::~VicsekSimulation()
@@ -283,23 +285,23 @@ void VicsekSimulation::log()
  *
  */
 
-ISMObservable_parameters::ISMObservable_parameters(const char* scope) :
+VicsekObservable_parameters::VicsekObservable_parameters(const char* scope) :
   glsim::Parameters(scope)
 {
   parameter_file_options().add_options()
-    ("ISM.obs_interval",po::value<int>()->default_value(0),
+    ("VicsekI.obs_interval",po::value<int>()->default_value(0),
      "Interval for standard observation, 0=skip")
-    ("ISM.obs_file_prefix",po::value<std::string>(),"Observation file prefix")
+    ("VicsekI.obs_file_prefix",po::value<std::string>(),"Observation file prefix")
     ;
 }
 
-void ISMObservable::interval_and_file()
+void VicsekObservable::interval_and_file()
 {
-  obs_interval=par.value("ISM.obs_interval").as<int>();
-  obs_file_prefix=par.value("ISM.obs_file_prefix").as<std::string>();
+  obs_interval=par.value("VicsekI.obs_interval").as<int>();
+  obs_file_prefix=par.value("VicsekI.obs_file_prefix").as<std::string>();
 }
 
-void ISMObservable::write_header()
+void VicsekObservable::write_header()
 {
   fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |    (10)| |    (11)| |    (12)| |    (13)| |    (14)| |    (15)| |    (16)| |    (17)|\n");
   fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |---------- Total spin --------|  |---------- Spin (single conf) ----------|\n");
@@ -307,7 +309,7 @@ void ISMObservable::write_header()
 
 }
 
-void ISMObservable::observe()
+void VicsekObservable::observe()
 {
   update();
   fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
@@ -319,7 +321,7 @@ void ISMObservable::observe()
 	  env.spinsqavar.ave(),env.spinsqavar.var(),env.spinsqavar.min(),env.spinsqavar.max());
 }
 
-void ISMObservable::update()
+void VicsekObservable::update()
 {
   double V[3],S[3];
 
