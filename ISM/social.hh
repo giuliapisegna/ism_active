@@ -53,6 +53,7 @@ public:
 		    glsim::NearestNeighbours *NN=0);
   double social_mass(short type) const {return chi/v0sq;}
   double speed(short type=0) const {return v0;}
+  double coupling() const {return J;}
   double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
