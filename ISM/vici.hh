@@ -45,8 +45,8 @@ public:
   double  time_step;
   bool    fixed_graph;
   double  temperature;
-  // double  eta;
   bool    rescale_v0;
+  bool    planar_noise;
 
   // System info
   double  v0;
@@ -57,8 +57,7 @@ public:
   double  total_social_mass;
   double  social_total_energy,social_potential_energy,social_kinetic_energy;
   double  polarization,v0sqave;
-  double  Vcm[3],total_spin[3],total_spinsq;
-  glsim::AveVar<true> spinsqavar;
+  double  Vcm[3];
 
 protected:
   void    init_local() {SimEnvironment::init_local(); common_init();}
@@ -108,8 +107,11 @@ protected:
 private:
   double  (*confb)[3];
   double  mass,xDt,Dt;
-  double  v0sq,sv,sa,rho,c0,c1dt,c1mc2,c2dt;
-  glsim::Gaussian_distribution* noise;
+  double  v0sq;
+
+  double nonoise() {return 0;}
+
+  glsim::Gaussian_distribution* noisexy,*noisez;
 } ;
 
 

@@ -31,8 +31,8 @@ VicsekIntegratorParameters::VicsekIntegratorParameters(const char *scope) :
     ("VicsekI.time_step",po::value<double>()->required(),"Delta t")
     ("VicsekI.fixed_graph",po::bool_switch()->required(),"False if birds are flying")
     ("VicsekI.temperature",po::value<double>()->required(),"Temperature for dv/dt friction")
-    //    ("VicsekI.eta",po::value<double>()->required(),"Friction coefficient")
     ("VicsekI.rescale_v0",po::bool_switch()->default_value(false),"If true, rescale speed to v0 before first step")
+    ("VicsekI.planar_noise",po::bool_switch()->default_value(false),"If true, the random force will lie in the XY plane.  With appropriate initial conditions, this can be used to simulate the 2-D Vicsek model")
     ;
 }
 
@@ -42,7 +42,6 @@ VicsekEnvironment::VicsekEnvironment(const char* scope) :
   time_step(1e-5),
   fixed_graph(false),
   temperature(1.),
-  //  eta(1.),
   total_number(0),
   total_social_mass(0),
   polarization(0),
@@ -56,8 +55,8 @@ void VicsekEnvironment::common_init()
   fixed_graph=par.value("VicsekI.fixed_graph").as<bool>();
   time_step=par.value("VicsekI.time_step").as<double>();
   temperature=par.value("VicsekI.temperature").as<double>();
-  //  eta=par.value("VicsekI.eta").as<double>();
   rescale_v0=par.value("VicsekI.rescale_v0").as<bool>();
+  planar_noise=par.value("VicsekI.planar_noise").as<bool>();
 }
 
 template <typename Archive>
@@ -66,7 +65,7 @@ inline void VicsekEnvironment::serialize(Archive &ar,const unsigned int version)
   if (version!=class_version)
     throw glsim::Environment_wrong_version("MDEnvironment",version,class_version);
   ar & boost::serialization::base_object<SimEnvironment>(*this);
-  ar & VSsteps & fixed_graph & time_step & temperature; // & eta;
+  ar & VSsteps & fixed_graph & time_step & temperature;
 }
 
 /*****************************************************************************
@@ -139,34 +138,17 @@ VicsekSimulation::VicsekSimulation(VicsekEnvironment& e,
   // double xi=1./(v0sq*mass);
   // double xidt=xi*Dt;
   double sigma=2*env.temperature*Dt/etasv0;
-  noise=new glsim::Gaussian_distribution(sigma,0);
-  // double c0l,c1,c2,sx,sv,rho;
-  // double exi=exp(-xidt);
-  // if (xidt<1e-3) {
-  //   c0l=1 - xidt + xidt*xidt/2 - xidt*xidt*xidt/6;
-  //   c1=1 - xidt/2 + xidt*xidt/6 - xidt*xidt*xidt/24;
-  //   c2=0.5 - xidt/6 + xidt*xidt/24;
-  //   rho=sqrt(3.)*(0.5-xidt/16.-(17./1280.)*xidt*xidt
-  // 		  +(17./6144)*xidt*xidt*xidt);
-  // } else {
-  //   c0l=exi;
-  //   c1=(1-c0l)/xidt;
-  //   c2=(1-c1)/xidt;
-  //   rho=(1-exi)*(1-exi)/sqrt( (1-exi*exi)*(3*xidt-3+4*exi-exi*exi) );
-  // }
-  // sa=(env.temperature/mass)*(1-exi*exi);
-  // sa=sqrt(sa);
-  // if (etasv0<1e-3) {
-  //   sv=env.temperature*Dt*Dt*Dt*etasv0*(2./3.-0.5*xidt)/(mass*mass);
-  // } else {
-  //   sv=(env.temperature/etasv0)*(2*Dt-(3-4*exi+exi*exi)/xi);
-  // }
-  // sv=sqrt(sv);
+  noisexy=new glsim::Gaussian_distribution(sigma,0);
+  if (env.planar_noise)
+    noisez=new glsim::Gaussian_distribution(0,0);
+  else
+    noisez=noisexy;
 }
 
 VicsekSimulation::~VicsekSimulation()
 {
-  delete noise;
+  delete noisexy;
+  if (env.planar_noise) delete noisez;
 }
 
 template <typename T> T sgn(T val) {
@@ -185,9 +167,9 @@ void VicsekSimulation::step()
     conf.r[i][2] += conf.v[i][2]*xDt;
 
     // 2. Delta v w/o shake corrections
-    deltav[0] = Dt*conf.a[i][0] + (*noise)();
-    deltav[1] = Dt*conf.a[i][1] + (*noise)();
-    deltav[2] = Dt*conf.a[i][2] + (*noise)();
+    deltav[0] = Dt*conf.a[i][0] + (*noisexy)();
+    deltav[1] = Dt*conf.a[i][1] + (*noisexy)();
+    deltav[2] = Dt*conf.a[i][2] + (*noisez)();
 
     // 3. Solve for lagrange multiplier
     double a = v0sq;
@@ -228,7 +210,7 @@ void VicsekSimulation::step()
 
 void VicsekSimulation::update_observables()
 {
-  double V[3],S[3];
+  double V[3];
 
   env.social_kinetic_energy=0;
   env.v0sqave=0;
@@ -241,18 +223,11 @@ void VicsekSimulation::update_observables()
     V[1]+=conf.v[i][1];
     V[2]+=conf.v[i][2];
     env.social_kinetic_energy+=inter->social_mass(conf.type[i])*modsq(conf.a[i]);
-    S[0]*=inter->social_mass(0);
-    S[1]*=inter->social_mass(0);
-    S[2]*=inter->social_mass(0);
-    env.total_spin[0]+=S[0];
-    env.total_spin[1]+=S[1];
-    env.total_spin[2]+=S[2];
   }
   env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
   env.social_kinetic_energy*=0.5;
   env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
-  env.total_spinsq=modsq(env.total_spin);
 }
 
 void VicsekSimulation::log_start_sim()
@@ -260,11 +235,10 @@ void VicsekSimulation::log_start_sim()
   char buff[300];
   
   Simulation::log_start_sim();
-  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi   <Stot^2>\n";
+  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi\n";
 
   sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
-	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
-	  env.total_spinsq);
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -272,10 +246,9 @@ void VicsekSimulation::log()
 {
   update_observables();
   static char buff[300];
-  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
-	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
-	  env.total_spinsq);
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -303,33 +276,29 @@ void VicsekObservable::interval_and_file()
 
 void VicsekObservable::write_header()
 {
-  fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |    (10)| |    (11)| |    (12)| |    (13)| |    (14)| |    (15)| |    (16)| |    (17)|\n");
-  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |---------- Total spin --------|  |---------- Spin (single conf) ----------|\n");
-  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi         Sx         Sy         Sz    Average   Variance        Min        Max\n");
+  fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |    (10)|\n");
+  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.|\n");
+  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi\n");
 
 }
 
 void VicsekObservable::observe()
 {
   update();
-  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
 	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,env.social_total_energy/conf.N,
 	  env.v0sqave,env.Vcm[0],env.Vcm[1],env.Vcm[2],
-	  env.polarization,
-	  env.total_spin[0],env.total_spin[1],env.total_spin[2],
-	  env.spinsqavar.ave(),env.spinsqavar.var(),env.spinsqavar.min(),env.spinsqavar.max());
+	  env.polarization);
 }
 
 void VicsekObservable::update()
 {
-  double V[3],S[3];
+  double V[3];
 
   env.social_kinetic_energy=0;
   env.v0sqave=0;
-  memset(env.total_spin,0,3*sizeof(double));
   memset(V,0,3*sizeof(double));
-  env.spinsqavar.clear();
   
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
@@ -338,14 +307,6 @@ void VicsekObservable::update()
     V[1]+=conf.v[i][1];
     V[2]+=conf.v[i][2];
     env.social_kinetic_energy+=env.social_mass[conf.type[i]]*modsq(conf.a[i]);
-    vprod(S,conf.v[i],conf.a[i]);
-    S[0]*=env.social_mass[0];
-    S[1]*=env.social_mass[0];
-    S[2]*=env.social_mass[0];
-    env.total_spin[0]+=S[0];
-    env.total_spin[1]+=S[1];
-    env.total_spin[2]+=S[2];
-    env.spinsqavar.push(modsq(S));
   }
   env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
@@ -354,5 +315,4 @@ void VicsekObservable::update()
   env.Vcm[2]=V[2]/conf.N;
   env.social_kinetic_energy*=0.5;
   env.social_total_energy=env.social_kinetic_energy+env.social_potential_energy;
-  env.total_spinsq=modsq(env.total_spin);
 }
