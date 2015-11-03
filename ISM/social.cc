@@ -11,6 +11,17 @@
 
 #include "3dvecs.hh"
 
+/*****************************************************************************
+ * 
+ * Vicsek
+ *
+ */
+
+/*
+ * Parameters
+ *
+ */
+
 VicsekParameters::VicsekParameters(const char* scope) :
   Parameters(scope)
 {
@@ -23,8 +34,13 @@ VicsekParameters::VicsekParameters(const char* scope) :
     ;
 }
 
-VicsekInteraction::VicsekInteraction(VicsekParameters &p,glsim::OLconfiguration &c,
-				     glsim::NearestNeighbours *n) :
+/*
+ * Generic Vicsek
+ *
+ */
+
+VicsekInteraction::VicsekInteraction(VicsekParameters &p,
+				     glsim::OLconfiguration &c) :
   SocialInteractions(),
   par(p)
 {
@@ -33,8 +49,20 @@ VicsekInteraction::VicsekInteraction(VicsekParameters &p,glsim::OLconfiguration 
   chi=par.value("Vicsek.chi").as<double>();
   J=par.value("Vicsek.J").as<double>();
   metric=par.value("Vicsek.metric").as<bool>();
-  if (!metric) throw glsim::Unimplemented("Topological interactions");
   rc=par.value("Vicsek.cutoff").as<double>();
+}
+
+/*
+ * Metric Vicsek
+ *
+ */
+
+MetricVicsekInteraction::MetricVicsekInteraction(VicsekParameters &p,
+						glsim::OLconfiguration &c,
+						glsim::MetricNearestNeighbours *n) :
+  VicsekInteraction(p,c)
+{
+  if (!metric) throw glsim::Runtime_error("You asked for topological interactions but created the metric object");
   rcsq=rc*rc;
 
   if (n) {
@@ -56,7 +84,7 @@ VicsekInteraction::VicsekInteraction(VicsekParameters &p,glsim::OLconfiguration 
    Note that the acceleration can be computed as F/m or as v0sq*F/chi.
 
 */
-double VicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,
+double MetricVicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,
 								   double b[][3])
 {
   double E=0;

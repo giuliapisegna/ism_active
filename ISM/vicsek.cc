@@ -91,7 +91,7 @@ void wmain(int argc, char *argv[])
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 
-  VicsekInteraction inter(VP,conf);
+  MetricVicsekInteraction inter(VP,conf);
   VicsekSimulation sim(env,conf,&inter);
 
 // traj.observe_first();
