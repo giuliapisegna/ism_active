@@ -33,13 +33,16 @@ void wmain(int argc, char *argv[])
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 
-  MetricVicsekInteraction inter(VP,conf);
-  ISMSimulation sim(env,conf,&inter);
+  VicsekInteraction *inter = VP.value("Vicsek.metric").as<bool>() ?
+    (VicsekInteraction*) new MetricVicsekInteraction(VP,conf) :
+    (VicsekInteraction*) new TopologicalVicsekInteraction(VP,conf);
+  ISMSimulation sim(env,conf,inter);
   // traj.observe_first();
   obs.observe_first();
   sim.run();
   env.save();
   conf.save(env.configuration_file_fin);
+  delete inter;
 }
 
 int main(int argc, char *argv[])

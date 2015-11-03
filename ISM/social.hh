@@ -94,26 +94,27 @@ inline void MetricVicsekInteraction::fold_coordinates(glsim::OLconfiguration& co
  *
  */
 
-// class TopologicalVicsekInteraction : public VicsekInteractions {
-// public:
-//   TopologicalVicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
-// 		    glsim::ToplogicalNearestNeighbours *NN=0);
-//   double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
-//   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
-//   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
+class TopologicalVicsekInteraction : public VicsekInteraction {
+public:
+  TopologicalVicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
+		    glsim::TopologicalNearestNeighbours *NN=0);
+  double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
+  double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
+  void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
 
-// private:
-//   bool                     own_NN;
-//   glsim::NearestNeighbours *NN;
-// } ;
+private:
+  bool                                 own_NN;
+  int                                  NNeighbours;
+  glsim::TopologicalNearestNeighbours *NN;
+} ;
 
-// inline void TopologicalVicsekInteraction::fold_coordinates(glsim::OLconfiguration& conf,double maxdisp)
-// {
-//   conf.fold_coordinates();
-//   if (maxdisp<0)
-//     NN->rebuild(conf,rc);
-//   else
-//     NN->update(conf,maxdisp);
-// }
+inline void TopologicalVicsekInteraction::fold_coordinates(glsim::OLconfiguration& conf,double maxdisp)
+{
+  conf.fold_coordinates();
+  if (maxdisp<0)
+    NN->rebuild(conf,rc);
+  else
+    NN->update(conf,maxdisp);
+}
 
 #endif /* SOCIAL_HH */
