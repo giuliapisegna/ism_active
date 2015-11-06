@@ -6,12 +6,18 @@ local=$(HOME)/local
 
 HDF5_inc = /usr/include/hdf5/serial
 
-CPPOPTFLAGS=
+# Debug
 #CPPOPTFLAGS=-DDEBUG
-CXXOPTFLAGS=-O3
 #CXXOPTFLAGS=-g
-LDOPTFLAGS=
 #LDOPTFLAGS=-g
+# Profile
+CPPOPTFLAGS=
+CXXOPTFLAGS=-g -pg
+LDOPTFLAGS=-g -pg
+#Release
+#CPPOPTFLAGS=
+#CXXOPTFLAGS=-O3
+#LDOPTFLAGS=
 
 CPPFLAGS=-I$(local)/include -I$(HDF5_inc) $(CPPOPTFLAGS)
 CXXFLAGS=--std=c++11 $(CXXOPTFLAGS)
