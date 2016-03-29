@@ -17,6 +17,7 @@ struct scomp {
   double s0;
   double boxl[3];
   bool   planar;
+  bool   polarize;
 
   scomp() : N(0) {}
   ~scomp() {}
@@ -49,7 +50,7 @@ void create_random(glsim::OLconfiguration &conf,scomp &SC)
     for (i=0; i<conf.N; ++i) conf.r[i][2]=ranz();
 }
 
-void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin)
+void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin,bool polarize)
 {
   delete[] conf.v;
   delete[] conf.a;
@@ -100,7 +101,7 @@ void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double
     vprod(u,s,v);   // now u \perp v \perp s
     normalize(u);
     normalize(v);
-    double theta=ran();
+    double theta= polarize ? 0 : ran();
     conf.v[i][0]=v0*(u[0]*cos(theta) + v[0]*sin(theta));
     conf.v[i][1]=v0*(u[1]*cos(theta) + v[1]*sin(theta));
     conf.v[i][2]=v0*(u[2]*cos(theta) + v[2]*sin(theta));
@@ -124,6 +125,7 @@ static struct options_ {
   double              v0;
   std::vector<double> spin;
   bool                planar;
+  bool                polarize;
 
   options_() :
     spin(3,0.)
@@ -148,6 +150,7 @@ CLoptions::CLoptions() : UtilityCL("ism_greate_conf")
      "speed (velocity modulus), directions will be random")
     ("spin,s",po::value<std::vector<double>>(&options.spin),"spin")
     ("planar,P",po::bool_switch(&options.planar)->default_value(false),"keep positions and velocities in the XY plane")
+    ("polarize,p",po::bool_switch(&options.polarize)->default_value(false),"polarize in a direction perp to the spin")
     ;
   positional_options().add("Nparts",1).add("out_file",1);
 }
@@ -164,8 +167,10 @@ void CLoptions::show_usage() const
     << "                     once for modulus (will use random orientation in this case)\n"
     << " --planar,P          Keep positions and velocities in the XY plane.  Density is then\n"
     << "                     a surface density.\n"
-    << "\nNote that if you give spin different from zero, the velocities will be given a random orientation\n"
-    << "but in the plane perpendicular to the spin.\n"
+    << " --polarize,p        if spin given, polarize in a perpendicular direction\n"
+    << "\nIf you give spin different from zero, the velocities will be given a random orientation\n"
+    << "in the plane perpendicular to the spin, unless you also specify polarize (-p),\n"
+    << "in which case all will be parallel.\n"
     << "\n";
 }
 
@@ -204,7 +209,7 @@ void wmain(int argc,char *argv[])
 
   create_random(conf,SC);
   conf.name="Created by ism_create_conf";
-  random_velocities(conf,options.v0,options.spin);
+  random_velocities(conf,options.v0,options.spin,options.polarize);
 
   conf.save(options.ofile);
 }
