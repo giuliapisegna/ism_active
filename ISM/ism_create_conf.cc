@@ -134,7 +134,7 @@ static struct options_ {
 class CLoptions : public glsim::UtilityCL {
 public:
   CLoptions();
-  void show_usage();
+  void show_usage() const;
 } ;
 
 CLoptions::CLoptions() : UtilityCL("ism_greate_conf")
@@ -152,7 +152,7 @@ CLoptions::CLoptions() : UtilityCL("ism_greate_conf")
   positional_options().add("Nparts",1).add("out_file",1);
 }
 
-void CLoptions::show_usage()
+void CLoptions::show_usage() const
 {
   std::cerr
     << "usage: " << progname << " [options] Nparts outfile\n\n"
@@ -201,6 +201,7 @@ void wmain(int argc,char *argv[])
   }
 
   glsim::Random_number_generator RNG(glsim::gsl_rng_mt19937,options.seed);
+
   create_random(conf,SC);
   conf.name="Created by ism_create_conf";
   random_velocities(conf,options.v0,options.spin);

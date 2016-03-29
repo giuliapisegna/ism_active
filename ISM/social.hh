@@ -13,6 +13,7 @@
 #include "glsim/parameters.hh"
 #include "glsim/olconfiguration.hh"
 #include "glsim/nneighbours.hh"
+#include "3dvecs.hh"
 
 /*****************************************************************************
  * 
@@ -67,26 +68,89 @@ private:
  *
  */
 
+template <typename NeighboursT=glsim::NeighbourList_subcells>
 class MetricVicsekInteraction : public VicsekInteraction {
 public:
   MetricVicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
-			  glsim::MetricNearestNeighbours *NN=0);
+			  NeighboursT *NN=0);
   double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
 
 private:
-  bool                            own_NN;
-  glsim::MetricNearestNeighbours *NN;
+  bool         own_NN;
+  NeighboursT *NN;
 } ;
 
-inline void MetricVicsekInteraction::fold_coordinates(glsim::OLconfiguration& conf,double maxdisp)
+template <typename NeighboursT>
+MetricVicsekInteraction<NeighboursT>::MetricVicsekInteraction(VicsekParameters &p,
+							      glsim::OLconfiguration &c,
+							      NeighboursT *n) :
+  VicsekInteraction(p,c)
+{
+  if (!metric) throw glsim::Runtime_error("You asked for topological interactions but created the metric object");
+  rcsq=rc*rc;
+
+  if (n) {
+    NN=n;
+    own_NN=false;
+  } else {
+    NN=new NeighboursT(rc);
+    own_NN=true;
+  }
+  NN->rebuild(c,rc);
+}
+
+template <typename NeighboursT>
+inline void MetricVicsekInteraction<NeighboursT>::
+fold_coordinates(glsim::OLconfiguration& conf,double maxdisp)
 {
   conf.fold_coordinates();
   if (maxdisp<0)
     NN->rebuild(conf,rc);
   else
-    NN->update(conf,maxdisp);
+    NN->update(maxdisp);
+}
+
+/*
+   This is computes the social interactions, but only for the metric case.
+
+   This routine assumes that the input velocities have modulus v0 (the
+   modulus of the velocity is fixed in the Vicsek model).
+
+   Note that the acceleration can be computed as F/m or as v0sq*F/chi.
+
+*/
+template <typename NeighboursT>
+double MetricVicsekInteraction<NeighboursT>::
+social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,double b[][3])
+{
+  double E=0;
+  memset(b,0,conf.N*3*sizeof(double));
+
+  double efac=-J/v0sq;
+  double ffac=J/chi;
+
+  for (auto p = NN->pairs_begin(); p!=NN->pairs_end(); ++p) {
+
+    double rxmn=conf.ddiff(conf.r[p->first][0],conf.r[p->second][0],conf.box_length[0]);
+    double rymn=conf.ddiff(conf.r[p->first][1],conf.r[p->second][1],conf.box_length[1]);
+    double rzmn=conf.ddiff(conf.r[p->first][2],conf.r[p->second][2],conf.box_length[2]);
+    double dsq=rxmn*rxmn+rymn*rymn+rzmn*rzmn;
+
+    if (dsq>rcsq) continue;
+
+    E += efac*dotp(conf.v[p->first],conf.v[p->second]);
+
+    b[p->first][0] += ffac * conf.v[p->second][0];
+    b[p->first][1] += ffac * conf.v[p->second][1];
+    b[p->first][2] += ffac * conf.v[p->second][2];
+    b[p->second][0] += ffac * conf.v[p->first][0];
+    b[p->second][1] += ffac * conf.v[p->first][1];
+    b[p->second][2] += ffac * conf.v[p->first][2];
+
+  }
+  return E;
 }
 
 /*
@@ -114,7 +178,7 @@ inline void TopologicalVicsekInteraction::fold_coordinates(glsim::OLconfiguratio
   if (maxdisp<0)
     NN->rebuild(conf,rc);
   else
-    NN->update(conf,maxdisp);
+    NN->update(maxdisp);
 }
 
 #endif /* SOCIAL_HH */

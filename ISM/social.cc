@@ -53,69 +53,6 @@ VicsekInteraction::VicsekInteraction(VicsekParameters &p,
 }
 
 /*
- * Metric Vicsek
- *
- */
-
-MetricVicsekInteraction::MetricVicsekInteraction(VicsekParameters &p,
-						glsim::OLconfiguration &c,
-						glsim::MetricNearestNeighbours *n) :
-  VicsekInteraction(p,c)
-{
-  if (!metric) throw glsim::Runtime_error("You asked for topological interactions but created the metric object");
-  rcsq=rc*rc;
-
-  if (n) {
-    NN=n;
-    own_NN=false;
-  } else {
-    NN=new glsim::NeighbourList_naive(rc);
-    own_NN=true;
-  }
-  NN->rebuild(c,rc);
-}
-
-/*
-   This is computes the social interactions, but only for the metric case.
-
-   This routine assumes that the input velocities have modulus v0 (the
-   modulus of the velocity is fixed in the Vicsek model).
-
-   Note that the acceleration can be computed as F/m or as v0sq*F/chi.
-
-*/
-double MetricVicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,
-								   double b[][3])
-{
-  double E=0;
-  memset(b,0,conf.N*3*sizeof(double));
-
-  double efac=-J/v0sq;
-  double ffac=J/chi;
-
-  for (auto p = NN->pair_begin(); p!=NN->pair_end(); ++p) {
-
-    double rxmn=conf.ddiff(conf.r[p->first][0],conf.r[p->second][0],conf.box_length[0]);
-    double rymn=conf.ddiff(conf.r[p->first][1],conf.r[p->second][1],conf.box_length[1]);
-    double rzmn=conf.ddiff(conf.r[p->first][2],conf.r[p->second][2],conf.box_length[2]);
-    double dsq=rxmn*rxmn+rymn*rymn+rzmn*rzmn;
-
-    if (dsq>rcsq) continue;
-
-    E += efac*dotp(conf.v[p->first],conf.v[p->second]);
-
-    b[p->first][0] += ffac * conf.v[p->second][0];
-    b[p->first][1] += ffac * conf.v[p->second][1];
-    b[p->first][2] += ffac * conf.v[p->second][2];
-    b[p->second][0] += ffac * conf.v[p->first][0];
-    b[p->second][1] += ffac * conf.v[p->first][1];
-    b[p->second][2] += ffac * conf.v[p->first][2];
-
-  }
-  return E;
-}
-
-/*
  * Topological Vicsek
  *
  */

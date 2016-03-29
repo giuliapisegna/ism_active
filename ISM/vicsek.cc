@@ -92,7 +92,7 @@ void wmain(int argc, char *argv[])
   glsim::prepare(CL,env,conf);
 
   VicsekInteraction *inter = VP.value("Vicsek.metric").as<bool>() ?
-    (VicsekInteraction*) new MetricVicsekInteraction(VP,conf) :
+    (VicsekInteraction*) new MetricVicsekInteraction<>(VP,conf) :
     (VicsekInteraction*) new TopologicalVicsekInteraction(VP,conf);
   VicsekSimulation sim(env,conf,inter);
 
