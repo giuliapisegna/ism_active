@@ -9,6 +9,7 @@
 
 #include "glsim/histogram.hh"
 #include "vici.hh"
+#include "glsim/offlattice.hh"
 
 
 /*****************************************************************************/
@@ -84,19 +85,26 @@ void wmain(int argc, char *argv[])
   glsim::OLconfiguration conf;
   VicsekObservable obs(env,conf);
   Energy_histogram ehis(env);
-  // glsim::Trajectory traj(env,conf,
-  // 			 glsim::OLconfig_file::options().r_frame());
+  glsim::Trajectory traj(env,conf,
+  			 glsim::OLconfig_file::options().r_frame());
 
   glsim::SimulationCL CL("vicsek (Vicsek's model)","(C) 2015 Tomas S. Grigera",env.scope());
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 
-  VicsekInteraction *inter = VP.value("Vicsek.metric").as<bool>() ?
+  VicsekInteraction *inter;
+  try {
+    inter = VP.value("Vicsek.metric").as<bool>() ?
     (VicsekInteraction*) new MetricVicsekInteraction<>(VP,conf) :
     (VicsekInteraction*) new TopologicalVicsekInteraction(VP,conf);
+  } catch (glsim::System_too_small& e) {
+    inter = VP.value("Vicsek.metric").as<bool>() ?
+      (VicsekInteraction*) new MetricVicsekInteraction<glsim::NeighbourList_naive>(VP,conf) :
+    (VicsekInteraction*) new TopologicalVicsekInteraction(VP,conf);
+  }
   VicsekSimulation sim(env,conf,inter);
 
-// traj.observe_first();
+  traj.observe_first();
   ehis.observe_first();
   obs.observe_first();
   sim.run();
