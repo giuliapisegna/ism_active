@@ -84,11 +84,10 @@ void wmain(int argc, char *argv[])
   VicsekParameters VP;
   glsim::OLconfiguration conf;
   VicsekObservable obs(env,conf);
-  Energy_histogram ehis(env);
-  glsim::Trajectory traj(env,conf,
-  			 glsim::OLconfig_file::options().r_frame());
+  // Energy_histogram ehis(env);
+  glsim::Trajectory traj(env,conf);
 
-  glsim::SimulationCL CL("vicsek (Vicsek's model)","(C) 2015 Tomas S. Grigera",env.scope());
+  glsim::SimulationCL CL("vicsek (Vicsek's model)","(C) 2015-2016 Tomas S. Grigera",env.scope());
   CL.parse_command_line(argc,argv);
   glsim::prepare(CL,env,conf);
 
@@ -105,7 +104,7 @@ void wmain(int argc, char *argv[])
   VicsekSimulation sim(env,conf,inter);
 
   traj.observe_first();
-  ehis.observe_first();
+  // ehis.observe_first();
   obs.observe_first();
   sim.run();
   env.save();
