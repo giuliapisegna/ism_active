@@ -65,7 +65,7 @@ inline void VicsekEnvironment::serialize(Archive &ar,const unsigned int version)
   if (version!=class_version)
     throw glsim::Environment_wrong_version("MDEnvironment",version,class_version);
   ar & boost::serialization::base_object<SimEnvironment>(*this);
-  ar & VSsteps & fixed_graph & time_step & temperature;
+  ar & VSsteps & fixed_graph & time_step & temperature & rescale_v0 & planar_noise;
 }
 
 /*****************************************************************************
@@ -114,7 +114,7 @@ VicsekSimulation::VicsekSimulation(VicsekEnvironment& e,
   }
 
   // If asked, rescale v0
-  if (env.rescale_v0) {
+  if (env.initialization_kind()!=glsim::Environment::load && env.rescale_v0) {
     for (int i=0; i<conf.N; ++i) {
       double v0=sqrt(modsq(conf.v[i]));
       conf.v[i][0]*=env.v0/v0;
