@@ -135,9 +135,7 @@ VicsekSimulation::VicsekSimulation(VicsekEnvironment& e,
   mass=inter->social_mass(0);
   double etasv0=1./v0sq;   // Because in the Vicsek friction is actually rotational friction
                            // and here eta=1 (overdamped, time rescaling)
-  // double xi=1./(v0sq*mass);
-  // double xidt=xi*Dt;
-  double sigma=2*env.temperature*Dt/etasv0;
+  double sigma=sqrt(2*env.temperature*Dt/etasv0);
   noisexy=new glsim::Gaussian_distribution(sigma,0);
   if (env.planar_noise)
     noisez=new glsim::Gaussian_distribution(0,0);

@@ -110,7 +110,7 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
   }
 
   // If asked, rescale v0 conserving angular velocity
-  if (env.rescale_v0) {
+  if (env.initialization_kind()!=glsim::Environment::load && env.rescale_v0) {
     for (int i=0; i<conf.N; ++i) {
       double v0=sqrt(modsq(conf.v[i]));
       conf.v[i][0]*=env.v0/v0;
@@ -121,7 +121,6 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
       conf.a[i][2]*=env.v0/v0;
     }
   }
-
 
   confb=new double[conf.N][3];
   env.social_potential_energy=inter->social_potential_energy_and_acceleration(conf,confb);
