@@ -58,6 +58,7 @@ public:
   double  social_total_energy,social_potential_energy,social_kinetic_energy;
   double  polarization,v0sqave;
   double  Vcm[3];
+  long    constraint_fails;
 
 protected:
   void    init_local() {SimEnvironment::init_local(); common_init();}
@@ -76,7 +77,7 @@ private:
   friend class boost::serialization::access;
 
 public:
-  static const int class_version=1;
+  static const unsigned int class_version=2;
 } ;
 
 BOOST_CLASS_VERSION(VicsekEnvironment,VicsekEnvironment::class_version);

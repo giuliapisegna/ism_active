@@ -45,6 +45,7 @@ VicsekEnvironment::VicsekEnvironment(const char* scope) :
   total_number(0),
   total_social_mass(0),
   polarization(0),
+  constraint_fails(0),
   SE(scope),
   par(scope)
 {}
@@ -57,15 +58,17 @@ void VicsekEnvironment::common_init()
   temperature=par.value("VicsekI.temperature").as<double>();
   rescale_v0=par.value("VicsekI.rescale_v0").as<bool>();
   planar_noise=par.value("VicsekI.planar_noise").as<bool>();
+  constraint_fails=0;
 }
 
 template <typename Archive>
 inline void VicsekEnvironment::serialize(Archive &ar,const unsigned int version)
 {
   if (version!=class_version)
-    throw glsim::Environment_wrong_version("MDEnvironment",version,class_version);
+    throw glsim::Environment_wrong_version("VicsekEnvironment",version,class_version);
   ar & boost::serialization::base_object<SimEnvironment>(*this);
   ar & VSsteps & fixed_graph & time_step & temperature & rescale_v0 & planar_noise;
+  ar & constraint_fails;
 }
 
 /*****************************************************************************
@@ -181,9 +184,27 @@ void VicsekSimulation::step()
     }
 
     // 4. Update v
-    conf.v[i][0] = w*conf.v[i][0] + deltav[0];
-    conf.v[i][1] = w*conf.v[i][1] + deltav[1];
-    conf.v[i][2] = w*conf.v[i][2] + deltav[2];
+    if (isnan(w)) {
+      // Problem: constraint cannot be enforced with a lagrange multiplier (centripetal force)
+      // Do it the Vicsek way (just renormalizing v)
+
+      conf.v[i][0]+=deltav[0];
+      conf.v[i][1]+=deltav[1];
+      conf.v[i][2]+=deltav[2];
+      w=sqrt(v0sq/modsq(conf.v[i]));
+      conf.v[i][0]*=w;
+      conf.v[i][1]*=w;
+      conf.v[i][2]*=w;
+
+      env.constraint_fails++;
+
+    } else {
+
+      conf.v[i][0] = w*conf.v[i][0] + deltav[0];
+      conf.v[i][1] = w*conf.v[i][1] + deltav[1];
+      conf.v[i][2] = w*conf.v[i][2] + deltav[2];
+
+    }
 
   }
 
@@ -233,20 +254,23 @@ void VicsekSimulation::log_start_sim()
   char buff[300];
   
   Simulation::log_start_sim();
-  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi\n";
+  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi  Fails/N/step\n";
 
-  sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
-	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
+  double Ntimessteps=conf.N*env.steps_completed;
+  sprintf(buff," Initial            %10.3e %10.3e %10.3e %12.5e\n",
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
+	  env.constraint_fails/Ntimessteps);
   glsim::logs(glsim::info) << buff;
 }
 
 void VicsekSimulation::log()
 {
   update_observables();
-  static char buff[300];
-  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e\n",
+  static char buff[301];
+  snprintf(buff,300,"%8ld %10.3e %10.3e %10.3e %10.3e %12.5e\n",
 	  env.steps_completed,env.time_completed,
-	  env.social_total_energy/conf.N,env.v0sqave,env.polarization);
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
+	  (double)env.constraint_fails/(conf.N*env.steps_completed));
   glsim::logs(glsim::info) << buff;
 }
 
@@ -274,20 +298,20 @@ void VicsekObservable::interval_and_file()
 
 void VicsekObservable::write_header()
 {
-  fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |    (10)|\n");
-  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.|\n");
-  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi\n");
-
+  fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |    (10)| |       (11)|\n");
+  fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| |Polariz.| |  Constraint\n");
+  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz        Phi  fails/N/step\n");
 }
 
 void VicsekObservable::observe()
 {
   update();
-  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  double Ntimessteps=conf.N*env.steps_completed;
+  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %12.5e\n",
 	  env.steps_completed,env.time_completed,
 	  env.social_potential_energy/conf.N,env.social_kinetic_energy/conf.N,env.social_total_energy/conf.N,
 	  env.v0sqave,env.Vcm[0],env.Vcm[1],env.Vcm[2],
-	  env.polarization);
+	  env.polarization,env.constraint_fails/Ntimessteps);
 }
 
 void VicsekObservable::update()
