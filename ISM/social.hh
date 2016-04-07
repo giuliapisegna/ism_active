@@ -73,11 +73,13 @@ class MetricVicsekInteraction : public VicsekInteraction {
 public:
   MetricVicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
 			  NeighboursT *NN=0);
-  double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
+  double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]);
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
 
 private:
+  double implement_social_interactions(glsim::OLconfiguration&,double b[][3],double ffac);
+
   bool         own_NN;
   NeighboursT *NN;
 } ;
@@ -113,23 +115,41 @@ fold_coordinates(glsim::OLconfiguration& conf,double maxdisp)
 }
 
 /*
-   This is computes the social interactions, but only for the metric case.
+   This computes the social interactions, but only for the metric case.
 
-   This routine assumes that the input velocities have modulus v0 (the
+   These routine assumes that the input velocities have modulus v0 (the
    modulus of the velocity is fixed in the Vicsek model).
 
-   Note that the acceleration can be computed as F/m or as v0sq*F/chi.
+   The different between computing accelerations and force is just a prefactor, so we precompute the prefactor and call a common implementation routine.
+
+   The acceleration can be computed as F/m or as v0sq*F/chi.
 
 */
 template <typename NeighboursT>
 double MetricVicsekInteraction<NeighboursT>::
+social_potential_energy_and_force(glsim::OLconfiguration &conf,double b[][3])
+{
+  double ffac=J/v0sq;
+  return implement_social_interactions(conf,b,ffac);
+}
+
+template <typename NeighboursT>
+double MetricVicsekInteraction<NeighboursT>::
 social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,double b[][3])
+{
+  double ffac=J/chi;
+  return implement_social_interactions(conf,b,ffac);
+}
+
+/* ffac should be J/chi to compute force, J/v0sq for acceleration */
+template <typename NeighboursT>
+double MetricVicsekInteraction<NeighboursT>::
+implement_social_interactions(glsim::OLconfiguration &conf,double b[][3],double ffac)
 {
   double E=0;
   memset(b,0,conf.N*3*sizeof(double));
 
   double efac=-J/v0sq;
-  double ffac=J/chi;
 
   for (auto p = NN->pairs_begin(); p!=NN->pairs_end(); ++p) {
 

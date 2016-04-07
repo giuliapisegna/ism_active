@@ -126,7 +126,7 @@ VicsekSimulation::VicsekSimulation(VicsekEnvironment& e,
     }
   }
 
-  env.social_potential_energy=inter->social_potential_energy_and_acceleration(conf,conf.a);
+  env.social_potential_energy=inter->social_potential_energy_and_force(conf,conf.a);
 
   conf.step=env.steps_completed;
   conf.time=env.time_completed;
@@ -135,10 +135,9 @@ VicsekSimulation::VicsekSimulation(VicsekEnvironment& e,
   // Constants for Langevin integration
   Dt=env.time_step;
   xDt = env.fixed_graph ? 0 : Dt;
-  mass=inter->social_mass(0);
   double etasv0=1./v0sq;   // Because in the Vicsek friction is actually rotational friction
                            // and here eta=1 (overdamped, time rescaling)
-  double sigma=sqrt(2*env.temperature*Dt/etasv0);
+  double sigma=sqrt(2*env.temperature*etasv0*Dt);
   noisexy=new glsim::Gaussian_distribution(sigma,0);
   if (env.planar_noise)
     noisez=new glsim::Gaussian_distribution(0,0);
@@ -168,9 +167,9 @@ void VicsekSimulation::step()
     conf.r[i][2] += conf.v[i][2]*xDt;
 
     // 2. Delta v w/o shake corrections
-    deltav[0] = Dt*conf.a[i][0] + (*noisexy)();
-    deltav[1] = Dt*conf.a[i][1] + (*noisexy)();
-    deltav[2] = Dt*conf.a[i][2] + (*noisez)();
+    deltav[0] = v0sq*(Dt*conf.a[i][0] + (*noisexy)());
+    deltav[1] = v0sq*(Dt*conf.a[i][1] + (*noisexy)());
+    deltav[2] = v0sq*(Dt*conf.a[i][2] + (*noisez)());
 
     // 3. Solve for lagrange multiplier
     double a = v0sq;
@@ -211,7 +210,7 @@ void VicsekSimulation::step()
   // 5. Compute forces with new positions and velocities (in
   //    overdamped Langevin, velocity, rather than acceleration, is
   //    proportional to the force, here conf.a is the "velocity's velocity")
-  env.social_potential_energy=inter->social_potential_energy_and_acceleration(conf,conf.a);
+  env.social_potential_energy=inter->social_potential_energy_and_force(conf,conf.a);
 
   inter->fold_coordinates(conf);
 

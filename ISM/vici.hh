@@ -107,7 +107,7 @@ protected:
 
 private:
   double  (*confb)[3];
-  double  mass,xDt,Dt;
+  double  xDt,Dt;
   double  v0sq;
 
   double nonoise() {return 0;}
