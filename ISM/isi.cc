@@ -205,6 +205,11 @@ void ISMSimulation::step()
     else {
       double q = -0.5 * (b+sgn(b)*sqrt(b*b-4*a*c));
       w = b>0 ? c/q : q/a;
+      if (isnan(w)) {
+	glsim::logs(glsim::error) << "RATTLE failed: cannot enforce constraint\n";
+	env.run_completed=true;
+	return;
+      }
     }
     double hlambda = (w -1)/c2dt;
 

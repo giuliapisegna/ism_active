@@ -7,9 +7,9 @@ local=$(HOME)/local
 HDF5_inc = /usr/include/hdf5/serial
 
 # Debug
-#CPPOPTFLAGS=-DDEBUG
-#CXXOPTFLAGS=-g
-#LDOPTFLAGS=-g
+# CPPOPTFLAGS=-DDEBUG
+# CXXOPTFLAGS=-g
+# LDOPTFLAGS=-g
 # Profile
 #CPPOPTFLAGS=
 #CXXOPTFLAGS=-g -pg
