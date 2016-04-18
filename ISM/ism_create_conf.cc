@@ -23,7 +23,7 @@ struct scomp {
   ~scomp() {}
 } ;
 
-void create_random(glsim::OLconfiguration &conf,scomp &SC)
+void random_positions(glsim::OLconfiguration &conf,scomp &SC)
 {
   conf.N=SC.N;
   conf.step=0;
@@ -48,6 +48,50 @@ void create_random(glsim::OLconfiguration &conf,scomp &SC)
   }
   if (!SC.planar)
     for (i=0; i<conf.N; ++i) conf.r[i][2]=ranz();
+}
+
+void fcc_positions(glsim::OLconfiguration &conf,scomp &SC)
+{
+  int   ix,iy,iz,i;
+  int   nx,ny,nz;
+  double d,x,y,z,vol;
+
+  conf.N=SC.N;
+  conf.step=0;
+  conf.time=0;
+  conf.box_angles[0]=conf.box_angles[1]=conf.box_angles[2]=90.;
+  memcpy(conf.box_length,SC.boxl,3*sizeof(double));
+  conf.id=new short[conf.N];
+  for (i=0; i<conf.N; conf.id[i]=i++) ;
+  conf.type=new short[conf.N];
+  for (int j=0; j<SC.N; ++j)
+    conf.type[j]=0;
+  conf.r=new double[conf.N][3];
+
+  vol=conf.box_length[0]*conf.box_length[1]*conf.box_length[2];
+  d=powf(2*conf.N/vol,-1./3.);
+  nx=ceil(conf.box_length[0]/d-1e-6);
+  ny=ceil(conf.box_length[1]/d-1e-6);
+  nz=ceil(conf.box_length[2]/d-1e-6);
+
+  i=0;
+  for (ix=0; ix<nx; ix++) {
+    x=ix*d;
+    for (iy=0; iy<ny; iy++) {
+      y=iy*d;
+      for (iz=0; iz<nz; iz++) {
+	if ( (ix+iy+iz)%2 !=0 ) continue;
+	z=iz*d;
+	conf.r[i][0]=x;
+	conf.r[i][1]=y;
+	conf.r[i][2]=z;
+	i++;
+	if (i>=conf.N) goto done;
+      }
+    }
+  }
+ done:
+  1;
 }
 
 void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin,bool polarize)
@@ -122,6 +166,7 @@ static struct options_ {
   unsigned long       seed;
   int                 N;
   double              density;
+  bool                fcc_lattice;
   double              v0;
   std::vector<double> spin;
   bool                planar;
@@ -141,17 +186,25 @@ public:
 
 CLoptions::CLoptions() : UtilityCL("ism_greate_conf")
 {
-  command_line_options().add_options()
+  hidden_command_line_options().add_options()
     ("out_file",po::value<std::string>(&options.ofile)->required(),"output file")
     ("Nparts",po::value<int>(&options.N)->required(),"total number of particles")
-    ("seed,S",po::value<unsigned long>(&options.seed)->default_value(0),"random number seed")
-    ("density,d",po::value<double>(&options.density)->default_value(1.),"average density")
-    ("vmodulus,v",po::value<double>(&options.v0)->default_value(1.),
-     "speed (velocity modulus), directions will be random")
-    ("spin,s",po::value<std::vector<double>>(&options.spin),"spin")
-    ("planar,P",po::bool_switch(&options.planar)->default_value(false),"keep positions and velocities in the XY plane")
-    ("polarize,p",po::bool_switch(&options.polarize)->default_value(false),"polarize in a direction perp to the spin")
     ;
+  
+  command_line_options().add_options()
+    ("density,d",po::value<double>(&options.density)->default_value(1.),"average density")
+    ("seed,S",po::value<unsigned long>(&options.seed)->default_value(0),"random number seed")
+    ("FCC,F",po::bool_switch(&options.fcc_lattice)->default_value(false),
+     "use FCC lattice for positions (default random positions)")
+    ("vmodulus,v",po::value<double>(&options.v0)->default_value(1.),
+     "speed (equal for all particles)")
+    ("spin,s",po::value<std::vector<double>>(&options.spin),"spin/chi (equal for all particles). Repeat 3 times for components, or give once for moduluse (random orientation")
+    ("planar,P",po::bool_switch(&options.planar)->default_value(false),
+     "keep positions and velocities in the XY plane, density is then surface density")
+    ("polarize,p",po::bool_switch(&options.polarize)->default_value(false),
+     "polarize in a direction perpendicular to the spin")
+    ;
+
   positional_options().add("Nparts",1).add("out_file",1);
 }
 
@@ -159,19 +212,14 @@ void CLoptions::show_usage() const
 {
   std::cerr
     << "usage: " << progname << " [options] Nparts outfile\n\n"
-    << "Create an off-lattice configuration with Nparts total particles and save to outfile.  Positions and orientation of velocity are random.  Options:\n\n"
-    << " --density,-d arg    Average density\n"
-    << " --seed,-S arg       Specify seed for random number generator\n"
-    << " --vmodulus,-v arg   Speed (equal for all particles)\n"
-    << " --spin,-s arg       Spin/chi (equal for all particles.  Repeat 3 times for components or\n"
-    << "                     once for modulus (will use random orientation in this case)\n"
-    << " --planar,P          Keep positions and velocities in the XY plane.  Density is then\n"
-    << "                     a surface density.\n"
-    << " --polarize,p        if spin given, polarize in a perpendicular direction\n"
-    << "\nIf you give spin different from zero, the velocities will be given a random orientation\n"
+    << "Create an off-lattice configuration with Nparts total particles and save to outfile.  Options:\n\n";
+  show_command_line_options(std::cerr);
+
+  std::cerr << "\nIf you give spin different from zero, the velocities will be given a random orientation\n"
     << "in the plane perpendicular to the spin, unless you also specify polarize (-p),\n"
     << "in which case all will be parallel.\n"
     << "\n";
+  show_command_line_options(std::cerr);
 }
 
 void wmain(int argc,char *argv[])
@@ -207,7 +255,10 @@ void wmain(int argc,char *argv[])
 
   glsim::Random_number_generator RNG(glsim::gsl_rng_mt19937,options.seed);
 
-  create_random(conf,SC);
+  if (options.fcc_lattice)
+    fcc_positions(conf,SC);
+  else
+    random_positions(conf,SC);
   conf.name="Created by ism_create_conf";
   random_velocities(conf,options.v0,options.spin,options.polarize);
 

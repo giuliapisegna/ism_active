@@ -22,8 +22,8 @@ LDOPTFLAGS=
 CPPFLAGS=-I$(local)/include -I$(HDF5_inc) $(CPPOPTFLAGS)
 CXXFLAGS=--std=c++11 $(CXXOPTFLAGS)
 LDFLAGS=-L$(local)/lib -L/usr/lib/x86_64-linux-gnu/hdf5/serial $(LDOPTFLAGS)
-#LDLIBS=-lglsim_ol -lglsim -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl  -Wl,-rpath -Wl,$(HOME)/local/lib
-LDLIBS=-static -lglsim_ol -lglsim -lhdf5_hl -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl -lz -lboost_chrono -lpthread -ldl -Wl,-rpath -Wl,$(HOME)/local/lib
+LDLIBS=-lglsim_ol -lglsim -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl  -Wl,-rpath -Wl,$(HOME)/local/lib
+#LDLIBS=-static -lglsim_ol -lglsim -lhdf5_hl -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl -lz -lboost_chrono -lpthread -ldl -Wl,-rpath -Wl,$(HOME)/local/lib
 
 all: ism ism_create_conf vicsek traj212col examine
 
