@@ -92,6 +92,9 @@ void fcc_positions(glsim::OLconfiguration &conf,scomp &SC)
   }
  done:
   1;
+
+  std::cout << "First neighbour distance: " << sqrt(2.)*d << '\n';
+
 }
 
 void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin,bool polarize)
