@@ -81,20 +81,21 @@ void fcc_positions(glsim::OLconfiguration &conf,scomp &SC)
       y=iy*d;
       for (iz=0; iz<nz; iz++) {
 	if ( (ix+iy+iz)%2 !=0 ) continue;
+	if (i>=conf.N) goto exhausted;
 	z=iz*d;
 	conf.r[i][0]=x;
 	conf.r[i][1]=y;
 	conf.r[i][2]=z;
 	i++;
-	if (i>=conf.N) goto done;
       }
     }
   }
- done:
-  1;
+  goto go;
+ exhausted:
+  std::cout << "WARNING: box was not uniformly filled (use N=(m^3)/2)\n";
 
+ go:
   std::cout << "First neighbour distance: " << sqrt(2.)*d << '\n';
-
 }
 
 void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin,bool polarize)
@@ -218,11 +219,11 @@ void CLoptions::show_usage() const
     << "Create an off-lattice configuration with Nparts total particles and save to outfile.  Options:\n\n";
   show_command_line_options(std::cerr);
 
-  std::cerr << "\nIf you give spin different from zero, the velocities will be given a random orientation\n"
-    << "in the plane perpendicular to the spin, unless you also specify polarize (-p),\n"
-    << "in which case all will be parallel.\n"
+  std::cerr
+    << "\nIf you give spin different from zero, the velocities will be given a random\n"
+    << "orientation in the plane perpendicular to the spin, unless you also specify\n"
+    << "polarize (-p),in which case all will be parallel.\n"
     << "\n";
-  show_command_line_options(std::cerr);
 }
 
 void wmain(int argc,char *argv[])
