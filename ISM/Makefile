@@ -25,7 +25,7 @@ LDFLAGS=-L$(local)/lib -L/usr/lib/x86_64-linux-gnu/hdf5/serial $(LDOPTFLAGS)
 LDLIBS=-lglsim_ol -lglsim -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl  -Wl,-rpath -Wl,$(HOME)/local/lib
 #LDLIBS=-static -lglsim_ol -lglsim -lhdf5_hl -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl -lz -lboost_chrono -lpthread -ldl -Wl,-rpath -Wl,$(HOME)/local/lib
 
-all: ism ism_create_conf vicsek traj212col examine tcorr1
+all: ism ism_create_conf vicsek traj212col examine tcorr1 ck
 
 ism: ism.o isi.o social.o
 	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS)
@@ -51,3 +51,8 @@ tcorr1: tcorr1.o
 	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS) -lglsim_an
 
 tcorr1.o: tcorr1.cc
+
+ck: ck.o
+	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS) -lglsim_an
+
+ck.o: ck.cc
