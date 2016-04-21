@@ -1,5 +1,5 @@
 /*
- * ck.cc -- Def2 in k space
+ * cko.cc -- Def2 in k,omega space
  *
  *
  */
@@ -10,8 +10,6 @@
 #include "glsim/offlattice.hh"
 #include "glsim/timecorr.hh"
 #include "glsim/fft.hh"
-
-#include "3dvecs.hh"
 
 using glsim::vcomplex;
 using glsim::dcomplex;
@@ -33,27 +31,27 @@ typedef glsim::ComplexFFT_gsl_2n  cFFT;
  *
  */
 
-class Ck {
+class Cko {
 public:
-  Ck(double box_length[],double deltat_,int kn_,int kdir_);
+  Cko(double box_length[],double deltat_,int kn_,int kdir_);
 
-  Ck& push_config(glsim::OLconfiguration &conf);
-  Ck& compute_Ck();
-  const vcomplex& Ck_data() const {return Ck_;} 
+  Cko& push_config(glsim::OLconfiguration &conf);
+  Cko& compute_Cko();
+  const vcomplex& Cko_data() const {return Cko_;} 
 
 private:
   int                               Npart,kn,kdir;
   double                            k[3],deltak_[3];
-  double                            deltat;
+  double                            deltat,delta_omega;
   vcomplex                          jkx_,jky_,jkz_;
-  vcomplex                          Ck_;
+  vcomplex                          Cko_;
   
   vcomplex j_k(glsim::OLconfiguration &);
 
-  friend std::ostream& operator<<(std::ostream&,const Ck&); 
+  friend std::ostream& operator<<(std::ostream&,const Cko&); 
 } ;
 
-Ck::Ck(double box_length[],double deltat_,int kn_,int kdir_) :
+Cko::Cko(double box_length[],double deltat_,int kn_,int kdir_) :
   deltat(deltat_),
   kn(kn_), kdir(kdir_),
   jkx_(3),jky_(3),jkz_(3)
@@ -67,21 +65,20 @@ Ck::Ck(double box_length[],double deltat_,int kn_,int kdir_) :
   k[kdir]=deltak_[kdir]*kn;
 }
 
-vcomplex Ck::j_k(glsim::OLconfiguration &conf)
+vcomplex Cko::j_k(glsim::OLconfiguration &conf)
 {
   std::vector<dcomplex> rk(3,dcomplex(0));
 
   for (int i=0; i<conf.N; i++) {
-    double v0=sqrt(modsq(conf.v[i]));
     double kr= k[0]*conf.r[i][0] + k[1]*conf.r[i][1] + k[2]*conf.r[i][2];
-    rk[0]+=conf.v[i][0]*exp(dcomplex(0,-1)*kr)/v0;
-    rk[1]+=conf.v[i][1]*exp(dcomplex(0,-1)*kr)/v0;
-    rk[2]+=conf.v[i][2]*exp(dcomplex(0,-1)*kr)/v0;
+    rk[0]+=conf.v[i][0]*exp(dcomplex(0,-1)*kr);
+    rk[1]+=conf.v[i][1]*exp(dcomplex(0,-1)*kr);
+    rk[2]+=conf.v[i][2]*exp(dcomplex(0,-1)*kr);
   }
   return rk;
 }
 
-Ck& Ck::push_config(glsim::OLconfiguration &conf)
+Cko& Cko::push_config(glsim::OLconfiguration &conf)
 {
   Npart=conf.N;
   std::vector<dcomplex> jk_;
@@ -93,46 +90,40 @@ Ck& Ck::push_config(glsim::OLconfiguration &conf)
   return *this;
 }
 
-Ck& Ck::compute_Ck()
+//
+// Although the correlation function transforms jk, computes squared
+// modulus and transforms back, I don't simply skip the back transform
+// part to get the correlation in omega space, because the
+// normalization of the time correlation is done in the time space
+Cko& Cko::compute_Cko()
 {
   dcomplex fac=1./dcomplex(Npart,0);
-  int Cklen=jkx_.size()/2;
-  Ck_.clear();
-  Ck_.resize(Cklen,dcomplex(0,0));
+  int Ckolen=jkx_.size();
+  Cko_.clear();
+  Cko_.resize(Ckolen,dcomplex(0,0));
   cFFT FF(glsim::FFT::in_place);
-  correlation_1d_tti_fft(jkx_,FF,Cklen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
-  correlation_1d_tti_fft(jky_,FF,Cklen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
-  correlation_1d_tti_fft(jkz_,FF,Cklen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
+
+  correlation_1d_tti_fft(jkx_,FF,Ckolen);
+  FF.forward();
+  for (int j=0; j<Ckolen; j++) Cko_[j]+=fac*FF.fdatum(j);
+  correlation_1d_tti_fft(jky_,FF,Ckolen);
+  FF.forward();
+  for (int j=0; j<Ckolen; j++) Cko_[j]+=fac*FF.fdatum(j);
+  correlation_1d_tti_fft(jkz_,FF,Ckolen);
+  FF.forward();
+  for (int j=0; j<Ckolen; j++) Cko_[j]+=fac*FF.fdatum(j);
+
+  delta_omega=2*M_PI/(deltat*Ckolen);
 
   return *this;
 }
 
-struct optlst {
-public:
-  int  kn,kdir;
-  bool normalize;
-  std::vector<std::string> ifiles;
-} options;
-
-
-std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
+std::ostream& operator<<(std::ostream& o,const Cko& Cko_)
 {
-  o << "# time   Ck'   Ck''\n";
-  if (options.normalize) {
-    dcomplex fac=1./Ck_.Ck_[0];
-    for (int i=0; i<Ck_.Ck_.size(); i++) {
-      dcomplex cc=Ck_.Ck_[i]*fac;
-      o << i*Ck_.deltat << "  " << cc.real()
-	<< "  " << cc.imag() << '\n';
-    }
-  } else {
-    for (int i=0; i<Ck_.Ck_.size(); i++)
-      o << i*Ck_.deltat << "  " << Ck_.Ck_[i].real()
-	<< "  " << Ck_.Ck_[i].imag() << '\n';
-  }
+  o << "# omega   Cko'   Cko''\n";
+  for (int i=0; i<Cko_.Cko_.size(); i++)
+    o << i*Cko_.delta_omega << "  " << Cko_.Cko_[i].real()
+      << "  " << Cko_.Cko_[i].imag() << " " << std::norm(Cko_.Cko_[i]) << '\n';
 }
 
 /******************************************************************************
@@ -141,23 +132,31 @@ std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
  *
  */
 
+struct optlst {
+public:
+  int  kn,kdir;
+  std::vector<std::string> ifiles;
+} options;
+
 class CLoptions : public glsim::UtilityCL {
 public:
   CLoptions();
   void show_usage() const;
 } ;
 
-CLoptions::CLoptions() : glsim::UtilityCL("ck")
+CLoptions::CLoptions() : glsim::UtilityCL("cko")
 {
   hidden_command_line_options().add_options()
     ("kn",po::value<int>(&options.kn)->required(),"wavevector")
     ("kdir",po::value<int>(&options.kdir)->required(),"k direction")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
-  command_line_options().add_options()
-    ("normalize,N",po::bool_switch(&options.normalize)->default_value(false),
-     "Normalize correlation to 1 at t=0")
-     ;
+  // command_line_options().add_options()
+  //   ("nave,n",po::value<int>(&options.nave)->default_value(10),
+  //    "do arg averages over random directions of the wavevector")
+  //   ("seed,S",po::value<long>(&options.seed)->default_value(1L),
+  //    "random number seed (with -s used to generate only one random direction)")
+  //   ;
 
   positional_options().add("kn",1).add("kdir",1).add("ifiles",-1);
 }
@@ -166,7 +165,7 @@ void CLoptions::show_usage() const
 {
   std::cerr
     << "usage: " << progname << "[options] kn kdir ifile [ifile ....]\n\n"
-    << "Computes C(k) (def2) at wave vector in one of the x,y,z directions\n"
+    << "Computes C(k,omega) (def2) at wave one vector in one of the x,y,z directions\n"
     << "(specified by kdir=0,1,2) and kn (the desired multiple of Delta k).\n"
     << "\n"
     << " Options:\n";
@@ -212,13 +211,13 @@ void wmain(int argc,char *argv[])
     throw glsim::Runtime_error("kdir must be 0,1,2");
 
   double deltat=get_deltat(ifs,conf);
-  Ck C(conf.box_length,deltat,options.kn,options.kdir);
+  Cko C(conf.box_length,deltat,options.kn,options.kdir);
   while (ifs.read()) {
     conf.unfold_coordinates();
     substract_cm(conf);
     C.push_config(conf);
   }
-  C.compute_Ck();
+  C.compute_Cko();
   std::cout << C;
 }
 
