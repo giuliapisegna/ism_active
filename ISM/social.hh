@@ -182,12 +182,14 @@ class TopologicalVicsekInteraction : public VicsekInteraction {
 public:
   TopologicalVicsekInteraction(VicsekParameters &par,glsim::OLconfiguration& c,
 		    glsim::TopologicalNearestNeighbours *NN=0);
-  double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]) {}
+  double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3]);
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3]);
   void   fold_coordinates(glsim::OLconfiguration&,double maxdisp=-1);
 
 private:
-  bool                                 own_NN;
+  double implement_social_interactions(glsim::OLconfiguration &conf,double b[][3],double ffac);
+
+bool                                 own_NN;
   int                                  NNeighbours;
   glsim::TopologicalNearestNeighbours *NN;
 } ;

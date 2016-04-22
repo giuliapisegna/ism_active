@@ -84,14 +84,28 @@ TopologicalVicsekInteraction::TopologicalVicsekInteraction(VicsekParameters &p,
    Note that the acceleration can be computed as F/m or as v0sq*F/chi.
 
 */
-double TopologicalVicsekInteraction::social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,
-									      double b[][3])
+double TopologicalVicsekInteraction::
+social_potential_energy_and_force(glsim::OLconfiguration &conf,double b[][3])
+{
+  double ffac=J/v0sq;
+  return implement_social_interactions(conf,b,ffac);
+}
+
+double TopologicalVicsekInteraction::
+social_potential_energy_and_acceleration(glsim::OLconfiguration &conf,double b[][3])
+{
+  double ffac=J/chi;
+  return implement_social_interactions(conf,b,ffac);
+}
+
+
+double TopologicalVicsekInteraction::
+implement_social_interactions(glsim::OLconfiguration &conf,double b[][3],double ffac)
 {
   double E=0;
   memset(b,0,conf.N*3*sizeof(double));
 
   double efac=-J/v0sq;
-  double ffac=J/chi;
 
   for (int i=0; i<conf.N; i++) {
     for (auto p = NN->neighbours_begin(i); p!=NN->neighbours_end(i); ++p) {
