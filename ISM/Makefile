@@ -7,17 +7,17 @@ local=$(HOME)/local
 HDF5_inc = /usr/include/hdf5/serial
 
 # Debug
-# CPPOPTFLAGS=-DDEBUG
-# CXXOPTFLAGS=-g
-# LDOPTFLAGS=-g
+CPPOPTFLAGS=-DDEBUG
+CXXOPTFLAGS=-g
+LDOPTFLAGS=-g
 # Profile
 #CPPOPTFLAGS=
 #CXXOPTFLAGS=-g -pg
 #LDOPTFLAGS=-g -pg
 #Release
-CPPOPTFLAGS=
-CXXOPTFLAGS=-O3
-LDOPTFLAGS=
+#CPPOPTFLAGS=
+#CXXOPTFLAGS=-O3
+#LDOPTFLAGS=
 
 CPPFLAGS=-I$(local)/include -I$(HDF5_inc) $(CPPOPTFLAGS)
 CXXFLAGS=--std=c++11 $(CXXOPTFLAGS)
@@ -25,7 +25,7 @@ LDFLAGS=-L$(local)/lib -L/usr/lib/x86_64-linux-gnu/hdf5/serial $(LDOPTFLAGS)
 LDLIBS=-lglsim_ol -lglsim -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl  -Wl,-rpath -Wl,$(HOME)/local/lib
 #LDLIBS=-static -lglsim_ol -lglsim -lhdf5_hl -lhdf5 -lboost_serialization -lboost_timer -lboost_system -lboost_program_options -lgsl -lz -lboost_chrono -lpthread -ldl -Wl,-rpath -Wl,$(HOME)/local/lib
 
-all: ism ism_create_conf vicsek traj212col examine tcorr1 ck cko
+all: ism ism_create_conf vicsek traj212col examine tcorr1 ck cko polarization
 
 ism: ism.o isi.o social.o
 	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS)
@@ -61,3 +61,8 @@ cko: cko.o
 	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS) -lglsim_an
 
 cko.o: cko.cc
+
+polarization: polarization.o
+	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS) -lglsim_an
+
+polarization.o: polarization.cc

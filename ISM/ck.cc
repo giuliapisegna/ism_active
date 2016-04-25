@@ -43,31 +43,47 @@ public:
 
 private:
   int                               Npart,kn,kdir;
-  double                            k[3],deltak_[3];
+  double                            deltak_[3];
+  std::vector<std::vector<double>>  k;
   double                            deltat;
-  vcomplex                          jkx_,jky_,jkz_;
+  // vcomplex                          jkx_,jky_,jkz_;
+  std::vector<vcomplex>             jkx_,jky_,jkz_;
   vcomplex                          Ck_;
   
-  vcomplex j_k(glsim::OLconfiguration &);
+  vcomplex j_k(glsim::OLconfiguration &,double k[]);
 
   friend std::ostream& operator<<(std::ostream&,const Ck&); 
 } ;
 
 Ck::Ck(double box_length[],double deltat_,int kn_,int kdir_) :
   deltat(deltat_),
-  kn(kn_), kdir(kdir_),
-  jkx_(3),jky_(3),jkz_(3)
+  kn(kn_), kdir(kdir_)
 {
   // choose deltak
   deltak_[0]=2*M_PI/box_length[0];
   deltak_[1]=2*M_PI/box_length[1];
   deltak_[2]=2*M_PI/box_length[2];
 
-  k[0]=k[1]=k[2]=0.;
-  k[kdir]=deltak_[kdir]*kn;
+  if (kdir==0 || kdir==1 || kdir==2) {
+    k.resize(1);
+  } else {
+    k.resize(6);
+    kdir=2;
+  }
+  for (int i=0; i<k.size(); ++i) {
+    k[i].resize(3,0);
+    if (kdir<0)
+      k[i][-kdir-1]=-deltak_[-kdir-1]*kn;
+    else
+      k[i][kdir]=deltak_[kdir]*kn;
+    kdir--;
+  }
+  jkx_.resize(k.size());
+  jky_.resize(k.size());
+  jkz_.resize(k.size());
 }
 
-vcomplex Ck::j_k(glsim::OLconfiguration &conf)
+vcomplex Ck::j_k(glsim::OLconfiguration &conf,double *k)
 {
   std::vector<dcomplex> rk(3,dcomplex(0));
 
@@ -84,28 +100,33 @@ vcomplex Ck::j_k(glsim::OLconfiguration &conf)
 Ck& Ck::push_config(glsim::OLconfiguration &conf)
 {
   Npart=conf.N;
-  std::vector<dcomplex> jk_;
-  jk_=j_k(conf);
-  jkx_.push_back(jk_[0]);
-  jky_.push_back(jk_[1]);
-  jkz_.push_back(jk_[2]);
+  for (int i=0; i<k.size(); ++i) {
+    std::vector<dcomplex> jk_;
+    jk_=j_k(conf,k[i].data());
+    jkx_[i].push_back(jk_[0]);
+    jky_[i].push_back(jk_[1]);
+    jkz_[i].push_back(jk_[2]);
+  }
 
   return *this;
 }
 
 Ck& Ck::compute_Ck()
 {
-  dcomplex fac=1./dcomplex(Npart,0);
-  int Cklen=jkx_.size()/2;
+  dcomplex fac=1./dcomplex(k.size()*Npart,0);
+  int Cklen=jkx_[0].size()/2;
   Ck_.clear();
   Ck_.resize(Cklen,dcomplex(0,0));
   cFFT FF(glsim::FFT::in_place);
-  correlation_1d_tti_fft(jkx_,FF,Cklen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
-  correlation_1d_tti_fft(jky_,FF,Cklen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
-  correlation_1d_tti_fft(jkz_,FF,Cklen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
+
+  for (int i=0; i<k.size(); ++i) {
+    correlation_1d_tti_fft(jkx_[i],FF,Cklen);
+    for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
+    correlation_1d_tti_fft(jky_[i],FF,Cklen);
+    for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
+    correlation_1d_tti_fft(jkz_[i],FF,Cklen);
+    for (int j=0; j<FF.tdata_rw().size(); j++) Ck_[j]+=fac*FF.tdatum(j);
+  }
 
   return *this;
 }
@@ -151,23 +172,24 @@ CLoptions::CLoptions() : glsim::UtilityCL("ck")
 {
   hidden_command_line_options().add_options()
     ("kn",po::value<int>(&options.kn)->required(),"wavevector")
-    ("kdir",po::value<int>(&options.kdir)->required(),"k direction")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
   command_line_options().add_options()
+    ("kdirection,d",po::value<int>(&options.kdir)->required(),
+     "direction of k: 0=x, 1=y, 2=z, 3=average of 0,1,2 (not good for noncubic boxes)")
     ("normalize,N",po::bool_switch(&options.normalize)->default_value(false),
      "Normalize correlation to 1 at t=0")
      ;
 
-  positional_options().add("kn",1).add("kdir",1).add("ifiles",-1);
+  positional_options().add("kn",1).add("ifiles",-1);
 }
 
 void CLoptions::show_usage() const
 {
   std::cerr
-    << "usage: " << progname << "[options] kn kdir ifile [ifile ....]\n\n"
-    << "Computes C(k) (def2) at wave vector in one of the x,y,z directions\n"
-    << "(specified by kdir=0,1,2) and kn (the desired multiple of Delta k).\n"
+    << "usage: " << progname << "[options] kn ifile [ifile ....]\n\n"
+    << "Computes C(k) (def2) at wave vector kn (the desired multiple of Delta k).\n"
+    << "Directions must be specified with option -d.\n"
     << "\n"
     << " Options:\n";
   show_command_line_options(std::cerr);
@@ -208,8 +230,8 @@ void wmain(int argc,char *argv[])
   glsim::OLconfig_file   cfile(&conf);
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
-  if (options.kdir<0 || options.kdir>2)
-    throw glsim::Runtime_error("kdir must be 0,1,2");
+  if (options.kdir<0 || options.kdir>3)
+    throw glsim::Runtime_error("kdir must be 0,1,3");
 
   double deltat=get_deltat(ifs,conf);
   Ck C(conf.box_length,deltat,options.kn,options.kdir);

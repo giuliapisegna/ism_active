@@ -28,5 +28,11 @@ inline void normalize(double *v)
   v[2]/=mod;
 }
 
+inline std::ostream& operator<<(std::ostream& o,double *v)
+{
+  o << '(' << v[0] << ',' << v[1] << ',' << v[2] << ')';
+  return o;
+}
+
 #endif /* T3DVECS_HH */
 
