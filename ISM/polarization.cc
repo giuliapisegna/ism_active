@@ -54,9 +54,8 @@ void CLoptions::show_usage() const
  *
  */
 
-double polarization(glsim::OLconfiguration& conf)
+double polarization(glsim::OLconfiguration& conf,double V[])
 {
-  double V[3];
   memset(V,0,3*sizeof(double));
   for (int i=0; i<conf.N; ++i) {
     double v0=sqrt(modsq(conf.v[i]));
@@ -64,7 +63,10 @@ double polarization(glsim::OLconfiguration& conf)
     V[1]+=conf.v[i][1]/v0;
     V[2]+=conf.v[i][2]/v0;
   }
-  return sqrt(modsq(V))/conf.N;
+  V[0]/=conf.N;
+  V[1]/=conf.N;
+  V[2]/=conf.N;
+  return sqrt(modsq(V));
 }
 
 void wmain(int argc,char *argv[])
@@ -79,10 +81,16 @@ void wmain(int argc,char *argv[])
   glsim::logs.set_stream(std::cout,glsim::error);
   ifs.read();
 
-  std::cout << "#Step  Time  Polarization\n";
+  double V0[3];
+  polarization(conf,V0);
+  std::cout << "#            |--Polarization--|\n";
+  std::cout << "#Step  Time  Scalar  Vx  Vy  Vz  Angle\n";
   do {
-    double pol=polarization(conf);
-    std::cout << conf.step << "  " << conf.time << "  " << pol << '\n';
+    double V[3];
+    double pol=polarization(conf,V);
+    double angle=acos(dotp(V0,V));
+    std::cout << conf.step << "  " << conf.time << "  " << pol
+	      << " " << V[0] << " " << V[1] << " " << V[2] << " " << angle << '\n';
   } while (ifs.read());
 }
 

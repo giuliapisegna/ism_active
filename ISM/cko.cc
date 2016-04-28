@@ -120,7 +120,7 @@ Cko& Cko::compute_Cko()
 
 std::ostream& operator<<(std::ostream& o,const Cko& Cko_)
 {
-  o << "# omega   Cko'   Cko''\n";
+  o << "# omega   Cko'   Cko''  |Ck|\n";
   for (int i=0; i<Cko_.Cko_.size(); i++)
     o << i*Cko_.delta_omega << "  " << Cko_.Cko_[i].real()
       << "  " << Cko_.Cko_[i].imag() << " " << std::norm(Cko_.Cko_[i]) << '\n';
