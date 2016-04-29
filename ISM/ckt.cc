@@ -1,6 +1,6 @@
 /*
- * ckt.cc -- Def2 in k space
- *
+ * ckt.cc -- Compute C(k,t) (analogous to the intermediate scattering function)
+ *           aka  Def2 in k space
  *
  */
 
@@ -27,7 +27,7 @@ typedef glsim::ComplexFFT_gsl_2n  cFFT;
 
 /*****************************************************************************
  *
- *  Class for C(k).  I'll choose one direction of k, parallel to the
+ *  Class for C(k,t).  I'll choose one direction of k, parallel to the
  *  cooordinate axes (set on construction), this way PBCs are
  *  correctly enforced.
  *
@@ -35,27 +35,29 @@ typedef glsim::ComplexFFT_gsl_2n  cFFT;
 
 class Ckt {
 public:
-  Ckt(double box_length[],double deltat_,int kn_,int kdir_);
+  Ckt(double box_length[],double deltat_,int kn_,int kdir_,bool connect);
 
   Ckt& push_config(glsim::OLconfiguration &conf);
   Ckt& compute_Ckt();
   const vcomplex& Ckt_data() const {return Ckt_;} 
 
 private:
+  bool                              connect;
   int                               Npart,kn,kdir;
   double                            deltak_[3];
   std::vector<std::vector<double>>  k;
   double                            deltat;
-  // vcomplex                          jkx_,jky_,jkz_;
   std::vector<vcomplex>             jkx_,jky_,jkz_;
   vcomplex                          Ckt_;
   
-  vcomplex j_k(glsim::OLconfiguration &,double k[]);
+  void polarization(glsim::OLconfiguration& conf,double V[]);
+  vcomplex j_k(glsim::OLconfiguration &,double k[],double V[]);
 
   friend std::ostream& operator<<(std::ostream&,const Ckt&); 
 } ;
 
-Ckt::Ckt(double box_length[],double deltat_,int kn_,int kdir_) :
+Ckt::Ckt(double box_length[],double deltat_,int kn_,int kdir_,bool connect_) :
+  connect(connect_),
   deltat(deltat_),
   kn(kn_), kdir(kdir_)
 {
@@ -83,16 +85,30 @@ Ckt::Ckt(double box_length[],double deltat_,int kn_,int kdir_) :
   jkz_.resize(k.size());
 }
 
-vcomplex Ckt::j_k(glsim::OLconfiguration &conf,double *k)
+void Ckt::polarization(glsim::OLconfiguration& conf,double V[])
+{
+  memset(V,0,3*sizeof(double));
+  for (int i=0; i<conf.N; ++i) {
+    double v0=sqrt(modsq(conf.v[i]));
+    V[0]+=conf.v[i][0]/v0;
+    V[1]+=conf.v[i][1]/v0;
+    V[2]+=conf.v[i][2]/v0;
+  }
+  V[0]/=conf.N;
+  V[1]/=conf.N;
+  V[2]/=conf.N;
+}
+
+vcomplex Ckt::j_k(glsim::OLconfiguration &conf,double *k,double V[])
 {
   std::vector<dcomplex> rk(3,dcomplex(0));
 
   for (int i=0; i<conf.N; i++) {
     double v0=sqrt(modsq(conf.v[i]));
     double kr= k[0]*conf.r[i][0] + k[1]*conf.r[i][1] + k[2]*conf.r[i][2];
-    rk[0]+=conf.v[i][0]*exp(dcomplex(0,-1)*kr)/v0;
-    rk[1]+=conf.v[i][1]*exp(dcomplex(0,-1)*kr)/v0;
-    rk[2]+=conf.v[i][2]*exp(dcomplex(0,-1)*kr)/v0;
+    rk[0]+=(conf.v[i][0]/v0-V[0])*exp(dcomplex(0,-1)*kr);
+    rk[1]+=(conf.v[i][1]/v0-V[1])*exp(dcomplex(0,-1)*kr);
+    rk[2]+=(conf.v[i][2]/v0-V[2])*exp(dcomplex(0,-1)*kr);
   }
   return rk;
 }
@@ -100,9 +116,11 @@ vcomplex Ckt::j_k(glsim::OLconfiguration &conf,double *k)
 Ckt& Ckt::push_config(glsim::OLconfiguration &conf)
 {
   Npart=conf.N;
+  double V[3]={0.,0.,0.};
+  if (connect) polarization(conf,V);
   for (int i=0; i<k.size(); ++i) {
     std::vector<dcomplex> jk_;
-    jk_=j_k(conf,k[i].data());
+    jk_=j_k(conf,k[i].data(),V);
     jkx_[i].push_back(jk_[0]);
     jky_[i].push_back(jk_[1]);
     jkz_[i].push_back(jk_[2]);
@@ -134,7 +152,7 @@ Ckt& Ckt::compute_Ckt()
 struct optlst {
 public:
   int  kn,kdir;
-  bool normalize;
+  bool normalize,connect;
   std::vector<std::string> ifiles;
 } options;
 
@@ -177,6 +195,8 @@ CLoptions::CLoptions() : glsim::UtilityCL("ck")
   command_line_options().add_options()
     ("kdirection,d",po::value<int>(&options.kdir)->required(),
      "direction of k: 0=x, 1=y, 2=z, 3=average of 0,1,2 (not good for noncubic boxes)")
+    ("connect,C",po::bool_switch(&options.connect)->default_value(false),
+     "Computed connected C(k,t) (Roman style)")
     ("normalize,N",po::bool_switch(&options.normalize)->default_value(false),
      "Normalize correlation to 1 at t=0")
      ;
@@ -188,8 +208,14 @@ void CLoptions::show_usage() const
 {
   std::cerr
     << "usage: " << progname << "[options] kn ifile [ifile ....]\n\n"
-    << "Computes C(k) (def2) at wave vector kn (the desired multiple of Delta k).\n"
+    << "Computes C(k,t) (def2) at wave vector kn (the desired multiple of Delta k).\n"
     << "Directions must be specified with option -d.\n"
+    << "This computes\n\n"
+    << "         C(k,t) = (1/N) \\sum_{ij} v_i(0) v_i(t) exp(i k r_{ij}(t)) / v0^2\n\n"
+    << "or, if -C (connect) is given, the connected C(k), Roman style:\n\n"
+    << "         C_R(k,t) = (1/N) \\sum_{ij} \\delta v_i \\delta v_k(t) exp(i k r_{ij}(t)),\n\n"
+    << "where \\delta v_i(t) = v_i(t)/v_0 - (1/N) \\sum_i v_i(t)/v_0.  The La Plata style \n"
+    << "connection can be obtained by computing C(k) and setting C(k=0) to 0.\n"
     << "\n"
     << " Options:\n";
   show_command_line_options(std::cerr);
@@ -234,7 +260,7 @@ void wmain(int argc,char *argv[])
     throw glsim::Runtime_error("kdir must be 0,1,3");
 
   double deltat=get_deltat(ifs,conf);
-  Ckt C(conf.box_length,deltat,options.kn,options.kdir);
+  Ckt C(conf.box_length,deltat,options.kn,options.kdir,options.connect);
   while (ifs.read()) {
     conf.unfold_coordinates();
     substract_cm(conf);
