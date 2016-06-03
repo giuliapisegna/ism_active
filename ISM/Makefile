@@ -67,6 +67,12 @@ cko: cko.o
 
 cko.o: cko.cc
 
+clambdat.o: clambdat.cc
+
+clambdat: clambdat.o
+	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS) -llapacke -lglsim_an
+
+
 polarization: polarization.o
 	g++ -o $@ $(LDFLAGS) $^ $(LDLIBS) -lglsim_an
 
