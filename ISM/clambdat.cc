@@ -84,7 +84,7 @@ void compute_evecs(LaplacianT &L,double *evals,EvecT &evecs)
 struct optlst {
 public:
   double rc;
-  bool normalize,connect;
+  bool normalize;
   int  Neval;
   std::vector<std::string> ifiles;
 } options;
@@ -103,8 +103,6 @@ CLoptions::CLoptions() : glsim::UtilityCL("ck")
   command_line_options().add_options()
     ("cut-off,c,d",po::value<double>(&options.rc)->required(),
      "cut-off radius (metric)")
-    ("connect,C",po::bool_switch(&options.connect)->default_value(false),
-     "Computed connected C(k,t) (Roman style)")
     ("neigen,n",po::value<int>(&options.Neval)->default_value(10),
      "compute correlation for the first arg eigenvalues/eigenvectors")
     ("normalize,N",po::bool_switch(&options.normalize)->default_value(false),
@@ -144,9 +142,9 @@ void substract_cm(glsim::OLconfiguration &conf)
   }
 }
 
-void polarization(glsim::OLconfiguration& conf,double V[])
+void substract_polarization(glsim::OLconfiguration& conf)
 {
-  memset(V,0,3*sizeof(double));
+  double V[3]={0,0,0};
   for (int i=0; i<conf.N; ++i) {
     double v0=sqrt(modsq(conf.v[i]));
     V[0]+=conf.v[i][0]/v0;
@@ -156,6 +154,11 @@ void polarization(glsim::OLconfiguration& conf,double V[])
   V[0]/=conf.N;
   V[1]/=conf.N;
   V[2]/=conf.N;
+  for (int i=0; i<conf.N; ++i) {
+    conf.v[i][0]-=V[0];
+    conf.v[i][1]-=V[1];
+    conf.v[i][2]-=V[2];
+  }
 }
 
 void wmain(int argc,char *argv[])
@@ -178,10 +181,6 @@ void wmain(int argc,char *argv[])
   laplacian_matrix(conf,options.rc,L);
   compute_evecs(L,evals,evecs);
 
-  for (int i=0; i<options.Neval; ++i)
-    printf("%d  %.14g\n",i,evals[i]);
-
-
   double V[3];
   typedef std::vector<double> seriesT;
   std::vector<double> deltaVx(conf.N),deltaVy(conf.N),deltaVz(conf.N);
@@ -193,23 +192,15 @@ void wmain(int argc,char *argv[])
     substract_cm(conf);
 
     // Compute \deltav_i (site base)
-    polarization(conf,V);
-    memset(deltaVx.data(),0,conf.N*sizeof(double));
-    memset(deltaVy.data(),0,conf.N*sizeof(double));
-    memset(deltaVz.data(),0,conf.N*sizeof(double));
-    for (int i=0; i<evecs.nrows(); ++i) {
-      deltaVx[i]=conf.v[i][0]-V[0];
-      deltaVy[i]=conf.v[1][1]-V[1];
-      deltaVz[i]=conf.v[1][2]-V[2];
-    }
+    substract_polarization(conf);
     // Project \delta v onto eigenvector and store
     for (int n=0; n<options.Neval; ++n) {
       double dx,dy,dz;
       dx=dy=dz=0;
       for (int i=0; i<conf.N; ++i) {
-	dx+=evecs(i,n)*deltaVx[i];
-	dy+=evecs(i,n)*deltaVy[i];
-	dz+=evecs(i,n)*deltaVz[i];
+	dx+=evecs(i,n)*conf.v[i][0];
+	dy+=evecs(i,n)*conf.v[i][1];
+	dz+=evecs(i,n)*conf.v[i][2];
       }
       dvx[n].push_back(dx);
       dvy[n].push_back(dy);
@@ -221,6 +212,7 @@ void wmain(int argc,char *argv[])
   // Compute autocorrelations
   rFFT FF(glsim::FFT::in_place);
   for (int n=0; n<options.Neval; ++n) {
+    Corr[n].resize(dvx[n].size()/2);
     correlation_1d_tti_fft(dvx[n],FF,dvx[n].size()/2);
     for (int j=0; j<FF.tdata_rw().size(); j++)
       Corr[n][j]+=FF.tdatum(j);
@@ -234,10 +226,14 @@ void wmain(int argc,char *argv[])
 
   // Print
   std::cout << "# time  C_lambda0  C_lambda1 ...\n";
+  std::vector<double> fac(options.Neval,1.);
+  if (options.normalize)
+    for (int n=0; n<options.Neval; ++n)
+      fac[n]=1./Corr[n][0];
   for (int i=0; i<Corr[0].size(); i++) {
     std::cout << i*deltat;
     for (int n=0; n<options.Neval; ++n)
-      std::cout << "  " << Corr[n][i];
+      std::cout << "  " << fac[n]*Corr[n][i];
     std::cout << '\n';
   }
 
