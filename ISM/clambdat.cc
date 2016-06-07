@@ -49,6 +49,18 @@ void laplacian_matrix(glsim::OLconfiguration &conf,double rc,LaplacianT &L)
   // L(L.nrows()-1,L.nrows()-1)=2;
 }
 
+void check_laplacian_tralation_invariance(LaplacianT &L,int dim)
+{
+  double sum;
+  for (int row=0; row<L.nrows(); ++row) {
+    sum=0;
+    for (int col=0; col<L.ncols(); col+=dim)
+      sum+=L(row,col);
+    std::cout << "Sum of row " << row << " stride " << dim <<
+      " = " << sum;
+  }
+}
+
 void compute_evecs(LaplacianT &L,double *evals,EvecT &evecs)
 {
   int* ifail=new lapack_int[L.ncols()];
@@ -146,23 +158,25 @@ void substract_polarization(glsim::OLconfiguration& conf)
 {
   double V[3]={0,0,0};
   for (int i=0; i<conf.N; ++i) {
-    double v0=sqrt(modsq(conf.v[i]));
-    V[0]+=conf.v[i][0]/v0;
-    V[1]+=conf.v[i][1]/v0;
-    V[2]+=conf.v[i][2]/v0;
+    V[0]+=conf.v[i][0];
+    V[1]+=conf.v[i][1];
+    V[2]+=conf.v[i][2];
   }
   V[0]/=conf.N;
   V[1]/=conf.N;
   V[2]/=conf.N;
   for (int i=0; i<conf.N; ++i) {
-    conf.v[i][0]-=V[0];
-    conf.v[i][1]-=V[1];
-    conf.v[i][2]-=V[2];
+    double v0=sqrt(modsq(conf.v[i]));
+    conf.v[i][0]=(conf.v[i][0]-V[0])/v0;
+    conf.v[i][1]=(conf.v[i][1]-V[1])/v0;
+    conf.v[i][2]=(conf.v[i][2]-V[2])/v0;
   }
 }
 
 void wmain(int argc,char *argv[])
 {
+  glsim::logs.set_stream(std::cerr,glsim::warn);
+  
   CLoptions o;
   o.parse_command_line(argc,argv);
   
@@ -181,6 +195,20 @@ void wmain(int argc,char *argv[])
   laplacian_matrix(conf,options.rc,L);
   compute_evecs(L,evals,evecs);
 
+  // for (int n=0; n<conf.N; ++n) {
+  //   std::cout << "eval " << n << ": " << evals[n] << "\n";
+  // }
+  // std::cout << "\n\n\n";
+  // for (int n=0; n<3; ++n) {
+  //   std::cout << "eval " << n << ": " <<  evals[n] << "\n\n";
+  //   std::cout << "evec " << n << '\n';
+  //   for (int i=0; i<conf.N; ++i)
+  //     std::cout << "component " << i << ": " << evecs(i,n) << '\n';
+  //   std::cout << "\n\n\n";
+  // }
+  // exit(1);
+
+
   double V[3];
   typedef std::vector<double> seriesT;
   std::vector<double> deltaVx(conf.N),deltaVy(conf.N),deltaVz(conf.N);
@@ -198,6 +226,7 @@ void wmain(int argc,char *argv[])
       double dx,dy,dz;
       dx=dy=dz=0;
       for (int i=0; i<conf.N; ++i) {
+	double v0=sqrt(modsq(conf.v[i]));
 	dx+=evecs(i,n)*conf.v[i][0];
 	dy+=evecs(i,n)*conf.v[i][1];
 	dz+=evecs(i,n)*conf.v[i][2];
@@ -225,7 +254,10 @@ void wmain(int argc,char *argv[])
   }
 
   // Print
-  std::cout << "# time  C_lambda0  C_lambda1 ...\n";
+  std::cout << "# Eigenvalues\n\n";
+  for (int n=0; n<options.Neval; ++n)
+    std::cout << "# lambda" << n << "= " << evals[n] << '\n';
+  std::cout << "#   C_lambda0  C_lambda1 ...\n";
   std::vector<double> fac(options.Neval,1.);
   if (options.normalize)
     for (int n=0; n<options.Neval; ++n)
@@ -237,6 +269,7 @@ void wmain(int argc,char *argv[])
     std::cout << '\n';
   }
 
+  delete[] evals;
 }
 
 int main(int argc, char *argv[])
