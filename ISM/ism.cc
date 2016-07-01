@@ -13,12 +13,6 @@
 #include "glsim/offlattice.hh"
 #include "isi.hh"
 
-std::ostream& operator<<(std::ostream&o,double* d)
-{
-  o << '(' << d[0] << ", " << d[1] << ", " << d[2] << ')';
-  return o;
-}
-
 /*****************************************************************************/
 
 

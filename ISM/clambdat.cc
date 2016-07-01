@@ -28,7 +28,9 @@ void laplacian_matrix(glsim::OLconfiguration &conf,double rc,LaplacianT &L)
   glsim::NeighbourList_subcells NN(rc);
   NN.rebuild(conf,rc);
 
-  memset(L.data(),0,L.nrows()*L.ncols());
+  for (int i=0; i<L.nrows(); ++i)
+    for (int j=0; j<L.ncols(); ++j)
+      L(i,j)=0.;
 
   for (auto p = NN.pairs_begin(); p!=NN.pairs_end(); ++p) {
     L(p->first,p->second)--;
@@ -71,17 +73,19 @@ void compute_evecs(LaplacianT &L,double *evals,EvecT &evecs)
   //                            lapack_int ldz, lapack_int* ifail );
 
   int M;
+  double abstol=2.*LAPACKE_dlamch('S');
+
   // To request only evals
   // int info=LAPACKE_dsyevx(LAPACK_COL_MAJOR,'N','I','U',
   // 			  L.nrows(),L.data(),L.nrows(),0,
   // 			  0,1,evecs.ncols(),
-  // 			  0,&M,evals,evecs.data(),
+  // 			  abstol,&M,evals,evecs.data(),
   // 			  L.nrows(),ifail);
   // To compute evals and evectors
   int info=LAPACKE_dsyevx(LAPACK_COL_MAJOR,'V','I','U',
   			  L.nrows(),L.data(),L.nrows(),0,
   			  0,1,evecs.ncols(),
-  			  0,&M,evals,evecs.data(),
+  			  abstol,&M,evals,evecs.data(),
   			  L.nrows(),ifail);
   assert(info==0);
   delete[] ifail;
@@ -113,7 +117,7 @@ CLoptions::CLoptions() : glsim::UtilityCL("ck")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
   command_line_options().add_options()
-    ("cut-off,c,d",po::value<double>(&options.rc)->required(),
+    ("cut-off,c",po::value<double>(&options.rc)->required(),
      "cut-off radius (metric)")
     ("neigen,n",po::value<int>(&options.Neval)->default_value(10),
      "compute correlation for the first arg eigenvalues/eigenvectors")
@@ -185,10 +189,9 @@ void wmain(int argc,char *argv[])
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
   double deltat=get_deltat(ifs,conf);
-  // Ckt C(conf.box_length,deltat,options.kn,options.kdir,options.connect);
 
   LaplacianT L(conf.N,conf.N);
-  double     *evals=new double[options.Neval];
+  double     *evals=new double[conf.N];
   EvecT      evecs(conf.N,options.Neval);
 
   ifs.read();
@@ -208,10 +211,9 @@ void wmain(int argc,char *argv[])
   // }
   // exit(1);
 
-
   double V[3];
   typedef std::vector<double> seriesT;
-  std::vector<double> deltaVx(conf.N),deltaVy(conf.N),deltaVz(conf.N);
+  seriesT deltaVx(conf.N),deltaVy(conf.N),deltaVz(conf.N);
   std::vector<seriesT> dvx(options.Neval),dvy(options.Neval),dvz(options.Neval),
     Corr(options.Neval);
 

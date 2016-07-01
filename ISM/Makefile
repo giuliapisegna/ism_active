@@ -18,6 +18,9 @@ HDF5_inc = /usr/include/hdf5/serial
 CPPOPTFLAGS=
 CXXOPTFLAGS=-O3
 LDOPTFLAGS=
+# CPPOPTFLAGS=
+# CXXOPTFLAGS=-O3 -fopenmp
+# LDOPTFLAGS=-lgomp
 
 CPPFLAGS=-I$(local)/include -I$(HDF5_inc) $(CPPOPTFLAGS)
 CXXFLAGS=--std=c++11 $(CXXOPTFLAGS)
