@@ -1,0 +1,28 @@
+
+active is a private simulation package that uses the open-source library glsim.
+
+Copyright (C) 2015, 2016 by Tomas S. Grigera <tgrigera@iflysib.unlp.edu.ar>
+
+Some files also copyright by contributing authors, as specified in the
+respective headers.
+
+Redistribution or modfication of tsim is forbidden.
+
+You should have received this package directly from the author. If
+this is not the case, you are in posession of an unauthorized copy and
+should delete it immediately.
+
+If you received tsim from the author, it is understood that it is to
+be used under scientific collaboration with the author for a specific
+project. You may not use it outside this project.
+
+You can use this package under the terms of the project and, if you
+have so agreed with the author, modify it or write new code based on
+it. This new code is also understood to be used only under the
+project. You of course retain your rights over the code you have
+written, but since it in principle depends on tsim's code, you should
+discuss uses of this code (by yourself or others) outside the project
+with tsim's author.
+
+If you would like to make use of this package other than set forth
+here, you must obtain permission in writing from the author.
