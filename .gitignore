@@ -1,4 +1,14 @@
 *~
+Makefile.in
+m4
+aclocal.m4
+autom4te.cache
+build
+configure
+compile
+depcomp
+install-sh
+missing
 GPATH
 GRTAGS
 GTAGS
