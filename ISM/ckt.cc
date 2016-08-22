@@ -186,7 +186,7 @@ public:
   void show_usage() const;
 } ;
 
-CLoptions::CLoptions() : glsim::UtilityCL("ck")
+CLoptions::CLoptions() : glsim::UtilityCL("ckt")
 {
   hidden_command_line_options().add_options()
     ("kn",po::value<int>(&options.kn)->required(),"wavevector")

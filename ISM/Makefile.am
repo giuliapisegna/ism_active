@@ -7,7 +7,7 @@
 #
 
 bin_PROGRAMS = ism ism_create_conf vicsek traj212col examine ck ckiso ckt	\
-               cko polarization tcorr1
+               cktiso cko polarization tcorr1
 
 ism_SOURCES = ism.cc isi.cc social.cc
 
@@ -28,6 +28,8 @@ ckiso_SOURCES = ckiso.cc
 
 ckt_SOURCES = ckt.cc
 ckt_LDADD = -lglsim_an $(AM_LDADD)
+
+cktiso_SOURCES = cktiso.cc
 
 cko_SOURCES = cko.cc
 cko_LDADD = -lglsim_an $(AM_LDADD)
