@@ -30,6 +30,7 @@ ckt_SOURCES = ckt.cc
 ckt_LDADD = -lglsim_an $(AM_LDADD)
 
 cktiso_SOURCES = cktiso.cc
+cktiso_CXXFLAGS=$(OPENMP_CXXFLAGS) $(AM_CXXFLAGS)
 
 cko_SOURCES = cko.cc
 cko_LDADD = -lglsim_an $(AM_LDADD)
