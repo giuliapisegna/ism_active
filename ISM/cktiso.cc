@@ -30,12 +30,21 @@ double corr(glsim::OLconfiguration& conf0,glsim::OLconfiguration& conf,double k)
 
 class comp_corr {
 public:
-  double        k,c;
+  double        c;
   
-  comp_corr(double k_,double c_) : k(k_), c(c_) {}
-  comp_corr(comp_corr &cc) : k(cc.k), c(0) {}
+  comp_corr(glsim::OLconfiguration &conf0_,glsim::OLconfiguration &conf_,
+	    double k_,double c_) :
+    conf0(conf0_), conf(conf_),
+    k(k_), c(c_) {}
+  comp_corr(const comp_corr &cc) :
+    conf0(cc.conf0), conf(cc.conf), k(cc.k), c(0) {}
+
   void operator()(int i,int j,double dsq);
   void reduce(comp_corr &cc) {c+=cc.c;}
+
+private:
+  double                  k;
+  glsim::OLconfiguration& conf0,conf;
 } ;
 
 void comp_corr::operator()(int i,int j,double dsq)
@@ -54,7 +63,7 @@ double corr_mt(glsim::OLconfiguration& conf0,glsim::OLconfiguration& conf,double
   for (int i=0; i<conf.N; ++i) {
     c+=dotp(conf0.v[i],conf.v[i])/conf.N;
   }
-  comp_corr CC(k,c);
+  comp_corr CC(conf0,conf,k,c);
   for_each_pair_mt(NN,CC);
   return CC.c;
 }
@@ -85,10 +94,12 @@ double find_k(std::string& find_k_file)
 
 struct optlst {
 public:
-  double k;
-  bool find_k;
+  double      k;
+  bool        find_k;
   std::string find_k_file;
-  bool normalize;
+  bool        normalize;
+  bool        multi_thread;
+
   std::vector<std::string> ifiles;
 
   optlst() : k(-1) {}
@@ -111,6 +122,8 @@ CLoptions::CLoptions() : glsim::UtilityCL("cktiso")
     ("wavevector,k",po::value<double>(&options.k),"wavevector modulus")
     ("find-k-in-file,f",po::value<std::string>(&options.find_k_file),
      "find k as that which maximizes C(k), to be read from the given file")
+    ("multi-thread,m",po::bool_switch(&options.multi_thread)->default_value(false),
+     "use multiple threads to loop over pairs of particles")
      ;
 
   positional_options().add("ifiles",-1);
@@ -208,7 +221,10 @@ void wmain(int argc,char *argv[])
     options.k=find_k(options.find_k_file);
   if (options.k<0)
     throw glsim::Runtime_error("Must give one of -k or -f");
-    
+
+  double (*corrf)(glsim::OLconfiguration& conf0,glsim::OLconfiguration& conf,double k);
+  if (options.multi_thread) corrf=corr_mt;
+  else corrf=corr;
 
   // All ready, go
 
@@ -227,7 +243,7 @@ void wmain(int argc,char *argv[])
       conf.unfold_coordinates();
       normalize_vel(conf);
       substract_cm(conf);
-      ckt[ifs.pos()-1-rect0]=corr(conf0,conf,options.k);
+      ckt[ifs.pos()-1-rect0]=corrf(conf0,conf,options.k);
 
       std::cout << "done  " << rect0 << " " << ifs.pos()-1 << '\n';
 
