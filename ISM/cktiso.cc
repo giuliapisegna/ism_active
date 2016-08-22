@@ -17,55 +17,27 @@ double corr(glsim::OLconfiguration& conf0,glsim::OLconfiguration& conf,double k)
             // of the sinc function
   double c=0;
   for (int i=0; i<conf.N; ++i) {
-    c+=dotp(conf0.v[i],conf.v[i])/conf.N;
-  }
-  for (int i=0; i<conf.N-1; ++i) {
-    for (int j=i+1; j<conf.N; ++j) {
+    for (int j=0; j<conf.N; ++j) {
       double r=sqrt(conf.distancesq(i,j));
-      c+=2*dotp(conf0.v[i],conf.v[j])*gsl_sf_sinc(k*r)/conf.N;
+      c+=dotp(conf0.v[i],conf.v[j])*gsl_sf_sinc(k*r)/conf.N;
     }
   }
   return c;
 }
 
-class comp_corr {
-public:
-  double        c;
-  
-  comp_corr(glsim::OLconfiguration &conf0_,glsim::OLconfiguration &conf_,
-	    double k_,double c_) :
-    conf0(conf0_), conf(conf_),
-    k(k_), c(c_) {}
-  comp_corr(const comp_corr &cc) :
-    conf0(cc.conf0), conf(cc.conf), k(cc.k), c(0) {}
-
-  void operator()(int i,int j,double dsq);
-  void reduce(comp_corr &cc) {c+=cc.c;}
-
-private:
-  double                  k;
-  glsim::OLconfiguration& conf0,conf;
-} ;
-
-void comp_corr::operator()(int i,int j,double dsq)
-{
-  double r=sqrt(dsq);
-  c+=2*dotp(conf0.v[i],conf.v[j])*gsl_sf_sinc(k*r)/conf.N;
-}
-
 double corr_mt(glsim::OLconfiguration& conf0,glsim::OLconfiguration& conf,double k)
 {
-  static glsim::MetricNearestNeighbours NN(1.1*sqrt(modsq(conf.box_length)));
-
-  k/=M_PI; // Divide by PI because of GSL's definition of the sinc function
+  k/=M_PI; // Divide by PI because of GSL's definition 
+            // of the sinc function
   double c=0;
   #pragma omp parallel for schedule(static) reduction(+:c)
   for (int i=0; i<conf.N; ++i) {
-    c+=dotp(conf0.v[i],conf.v[i])/conf.N;
+    for (int j=0; j<conf.N; ++j) {
+      double r=sqrt(conf.distancesq(i,j));
+      c+=dotp(conf0.v[i],conf.v[j])*gsl_sf_sinc(k*r)/conf.N;
+    }
   }
-  comp_corr CC(conf0,conf,k,c);
-  for_each_pair_mt(NN,CC);
-  return CC.c;
+  return c;
 }
 
 double find_k(std::string& find_k_file)
@@ -95,6 +67,7 @@ double find_k(std::string& find_k_file)
 struct optlst {
 public:
   double      k;
+  double      tmax;
   bool        find_k;
   std::string find_k_file;
   bool        normalize;
@@ -122,6 +95,8 @@ CLoptions::CLoptions() : glsim::UtilityCL("cktiso")
     ("wavevector,k",po::value<double>(&options.k),"wavevector modulus")
     ("find-k-in-file,f",po::value<std::string>(&options.find_k_file),
      "find k as that which maximizes C(k), to be read from the given file")
+    ("tmax,t",po::value<double>(&options.tmax)->default_value(-1),
+     "Compute correlation up to arg (negative means all available times)")
     ("multi-thread,m",po::bool_switch(&options.multi_thread)->default_value(false),
      "use multiple threads to loop over pairs of particles")
      ;
@@ -226,12 +201,18 @@ void wmain(int argc,char *argv[])
   if (options.multi_thread) corrf=corr_mt;
   else corrf=corr;
 
-  // All ready, go
-
+  // Set maxtime
   double deltat=get_deltat(ifs,conf);
   std::vector<double> ckt;
   hsize_t ntimes=ifs.size()/2;
+  if (options.tmax>0)
+    ntimes=(hsize_t) ceil(options.tmax/deltat);
   ckt.resize(ntimes);
+
+  // All ready, go
+
+  int count=0;
+
   for (hsize_t rect0=0; rect0<ifs.size(); ++rect0) {
     ifs.seek(rect0);
     ifs.read();
@@ -243,10 +224,9 @@ void wmain(int argc,char *argv[])
       conf.unfold_coordinates();
       normalize_vel(conf);
       substract_cm(conf);
-      ckt[ifs.pos()-1-rect0]=corrf(conf0,conf,options.k);
-
-      std::cout << "done  " << rect0 << " " << ifs.pos()-1 << '\n';
-
+      ckt[ifs.pos()-1-rect0]+=corrf(conf0,conf,options.k);
+      double ufa=corrf(conf0,conf,options.k);
+      if (ifs.pos()-1-rect0==0) count++;
     } while (ifs.read() && ifs.pos()-1-rect0<ntimes);
   }
   for (int i=0; i<ntimes; ++i)
