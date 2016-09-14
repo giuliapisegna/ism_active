@@ -35,6 +35,7 @@ public:
   {return (*vec)[i]/nconf;}
 
   void push(const glsim::OLconfiguration&);
+  void push(const Cr&);
 
 private:
   glsim::Binned_vector<double> *vec;
@@ -75,6 +76,13 @@ void Cr::push(const glsim::OLconfiguration& conf)
   nconf++;
 }
 
+void Cr::push(const Cr& C)
+{
+  for (int i=0; i<vec->nbins(); ++i)
+    (*vec)[i]+=(*(C.vec))[i];
+  nconf+=C.nconf;
+}
+ 
 std::ostream& operator<<(std::ostream& o,const Cr& corr)
 {
   double f=1./(4*M_PI*corr.rhon*corr.nconf);
@@ -207,7 +215,7 @@ void normalize_vel(glsim::OLconfiguration& conf)
   double fn=0;
   for (int i=0; i<conf.N; ++i)
     fn+=modsq(conf.v[i]);
-  fn=sqrt(fn/conf.N);
+  fn= fn==0 ? 1 : sqrt(fn/conf.N);
   for (int i=0; i<conf.N; ++i) {
     conf.v[i][0]/=fn;
     conf.v[i][1]/=fn;
@@ -215,24 +223,61 @@ void normalize_vel(glsim::OLconfiguration& conf)
   }
 }
 
+// void wmain(int argc,char *argv[])
+// {
+//   CLoptions o;
+//   o.parse_command_line(argc,argv);
+  
+//   glsim::OLconfiguration conf;
+//   glsim::OLconfig_file   cfile(&conf);
+//   glsim::H5_multi_file   ifs(options.ifiles,cfile);
+
+//   ifs.read();
+//   Cr C(conf,options.rnn);
+//   do {
+//     normalize_vel(conf);
+//     C.push(conf);
+//   } while (ifs.read());
+
+//   Ckiso Ck(conf,C,options.nk);
+//   std::cout << Ck;
+// }
+
 void wmain(int argc,char *argv[])
 {
   CLoptions o;
   o.parse_command_line(argc,argv);
-  
+
   glsim::OLconfiguration conf;
   glsim::OLconfig_file   cfile(&conf);
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
   ifs.read();
   Cr C(conf,options.rnn);
-  do {
-    normalize_vel(conf);
-    C.push(conf);
-  } while (ifs.read());
+  ifs.rewind();
 
-  Ckiso Ck(conf,C,options.nk);
-  std::cout << Ck;
+  #pragma omp parallel
+  {
+    glsim::OLconfiguration confloc=conf;
+    Cr Cloc(confloc,options.rnn);
+
+    #pragma omp for schedule(static) nowait
+    for (hsize_t rec=0; rec<ifs.size(); ++rec) {
+      #pragma omp critical
+      {
+	ifs.read();
+	confloc=conf;
+      }
+      normalize_vel(confloc);
+      Cloc.push(confloc);
+    }
+
+    #pragma omp critical
+    C.push(Cloc);
+  }
+
+  Ckiso Ck(conf,C,options.nk);                                                  
+  std::cout << Ck;                                                              
 }
 
 int main(int argc, char *argv[])

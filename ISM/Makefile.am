@@ -25,6 +25,7 @@ tcorr1_LDADD = -lglsim_an $(AM_LDADD)
 ck_SOURCES = ck.cc
 
 ckiso_SOURCES = ckiso.cc
+ckiso_CXXFLAGS=$(OPENMP_CXXFLAGS) $(AM_CXXFLAGS)
 
 ckt_SOURCES = ckt.cc
 ckt_LDADD = -lglsim_an $(AM_LDADD)
