@@ -107,7 +107,7 @@ CLoptions::CLoptions() : glsim::UtilityCL("cktiso")
 void CLoptions::show_usage() const
 {
   std::cerr
-    << "usage: " << progname << "[options] kn ifile [ifile ....]\n\n"
+    << "usage: " << progname << "[options] ifile [ifile ....]\n\n"
     << "Computes isotropic C(k,t) (def2) from given trajectory files.\n"
     << "This computes\n\n"
     << "         C_R(k,t) = (1/N) \\sum_{ij} \\hat \\delta v_i \\hat\\delta v_k(t) exp(i k r_{ij}(t)),\n\n"

@@ -50,8 +50,6 @@ private:
   vcomplex                          Ck_;
   
   void polarization(glsim::OLconfiguration& conf,double V[]);
-  void push_config_connected(glsim::OLconfiguration &conf);
-  void push_config_nc(glsim::OLconfiguration &conf);
 
   friend std::ostream& operator<<(std::ostream&,const Ck&); 
 } ;
@@ -64,100 +62,36 @@ Ck::Ck(double box_length[],int nk_,int kdir_,bool connected_) :
   deltak_[1]=2*M_PI/box_length[1];
   deltak_[2]=2*M_PI/box_length[2];
 
-  if (kdir==0 || kdir==1 || kdir==2) {
-    k.resize(1);
-  } else {
-    k.resize(6);
-    kdir=2;
-  }
+  k.resize(3);
   for (int i=0; i<k.size(); ++i) {
     k[i].resize(3,0);
-    if (kdir<0)
-      k[i][-kdir-1]=-deltak_[-kdir-1];
-    else
-      k[i][kdir]=deltak_[kdir];
-    kdir--;
+    k[i][i]=deltak_[i];
   }
   Ck_.resize(nk,0);
 }
 
-void Ck::polarization(glsim::OLconfiguration& conf,double V[])
-{
-  memset(V,0,3*sizeof(double));
-  for (int i=0; i<conf.N; ++i) {
-    double v0=sqrt(modsq(conf.v[i]));
-    V[0]+=conf.v[i][0]/v0;
-    V[1]+=conf.v[i][1]/v0;
-    V[2]+=conf.v[i][2]/v0;
-  }
-  V[0]/=conf.N;
-  V[1]/=conf.N;
-  V[2]/=conf.N;
-}
-
 Ck& Ck::push_config(glsim::OLconfiguration &conf)
 {
-  if (connected) push_config_connected(conf);
-  else push_config_nc(conf);
+  dcomplex S;
+  dcomplex vkx,vky,vkz;
+  nsamp++;
+  dcomplex unsamp=1./dcomplex(nsamp,0);
+  for (int jk=0; jk<Ck_.size(); ++jk) {
+    S=0;
+    vkx=vky=vkz=0;
+    for (int n=0; n<conf.N; ++n) {
+      double kr= jk*k[kdir][0]*conf.r[n][0] + jk*k[kdir][1]*conf.r[n][1] + jk*k[kdir][2]*conf.r[n][2];
+      vkx+=conf.v[n][0]*exp(dcomplex(0,-1)*kr);
+      vky+=conf.v[n][1]*exp(dcomplex(0,-1)*kr);
+      vkz+=conf.v[n][2]*exp(dcomplex(0,-1)*kr);
+    }
+    S=(vkx*conj(vkx)+vky*conj(vky)+vkz*conj(vkz))/dcomplex(conf.N,0.);
+
+    // Add to the running average of C(k)
+    dcomplex Q=S-Ck_[jk];
+    Ck_[jk]+=Q*unsamp;
+  }
   return *this;
-}
-
-void Ck::push_config_nc(glsim::OLconfiguration &conf)
-{
-  dcomplex S;
-  dcomplex vkx,vky,vkz;
-  nsamp++;
-  dcomplex unsamp=1./dcomplex(nsamp,0);
-  for (int jk=0; jk<Ck_.size(); ++jk) {
-    S=0;
-    for (int i=0; i<k.size(); ++i) {
-      vkx=vky=vkz=0;
-      for (int n=0; n<conf.N; ++n) {
-	double v0=sqrt(modsq(conf.v[n]));
-	double kr= jk*k[i][0]*conf.r[n][0] + jk*k[i][1]*conf.r[n][1] + jk*k[i][2]*conf.r[n][2];
-	vkx+=conf.v[n][0]*exp(dcomplex(0,-1)*kr)/v0;
-	vky+=conf.v[n][1]*exp(dcomplex(0,-1)*kr)/v0;
-	vkz+=conf.v[n][2]*exp(dcomplex(0,-1)*kr)/v0;
-      }
-      S+=vkx*conj(vkx)+vky*conj(vky)+vkz*conj(vkz);
-    }
-    S/=(conf.N*k.size());  // Now S is Ck at fixed k, averaged over dirs
-
-    // Add to the running average of C(k)
-    dcomplex Q=S-Ck_[jk];
-    Ck_[jk]+=Q*unsamp;
-  }
-}
-
-void Ck::push_config_connected(glsim::OLconfiguration &conf)
-{
-  dcomplex S;
-  dcomplex vkx,vky,vkz;
-  nsamp++;
-  dcomplex unsamp=1./dcomplex(nsamp,0);
-
-  double V[3];
-  polarization(conf,V);
-
-  for (int jk=0; jk<Ck_.size(); ++jk) {
-    S=0;
-    for (int i=0; i<k.size(); ++i) {
-      vkx=vky=vkz=0;
-      for (int n=0; n<conf.N; ++n) {
-	double v0=sqrt(modsq(conf.v[n]));
-	double kr= jk*k[i][0]*conf.r[n][0] + jk*k[i][1]*conf.r[n][1] + jk*k[i][2]*conf.r[n][2];
-	vkx+=(conf.v[n][0]/v0-V[0])*exp(dcomplex(0,-1)*kr);
-	vky+=(conf.v[n][1]/v0-V[1])*exp(dcomplex(0,-1)*kr);
-	vkz+=(conf.v[n][2]/v0-V[2])*exp(dcomplex(0,-1)*kr);
-      }
-      S+=vkx*conj(vkx)+vky*conj(vky)+vkz*conj(vkz);
-    }
-    S/=(conf.N*k.size());  // Now S is Ck at fixed k, averaged over dirs
-
-    // Add to the running average of C(k)
-    dcomplex Q=S-Ck_[jk];
-    Ck_[jk]+=Q*unsamp;
-  }
 }
 
 std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
@@ -196,7 +130,7 @@ CLoptions::CLoptions() : glsim::UtilityCL("ck")
     ;
   command_line_options().add_options()
     ("kdirection,d",po::value<int>(&options.kdir)->required(),
-     "direction of k: 0=x, 1=y, 2=z, 3=average of 0,1,2 (not good for noncubic boxes)")
+     "direction of k: 0=x, 1=y, 2=z, 3=average over all cubic symmetry operations (not good for noncubic boxes)")
     ("connect,C",po::bool_switch(&options.connect)->default_value(false),
      "Computed connected C(k) (Roman style)")
      ;
@@ -213,8 +147,9 @@ void CLoptions::show_usage() const
     << "This computes\n\n"
     << "              C(k) = (1/N) \\sum_{ij} v_i v_i exp(i k r_{ij}) / v0^2\n\n"
     << "or, if -C (connect) is given, the connected C(k), Roman style:\n\n"
-    << "              C_R(k) = (1/N) \\sum_{ij} \\delta v_i \\delta v_k exp(i k r_{ij}),\n\n"
-    << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0.  The La Plata style \n"
+    << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i exp(i k r_{ij})\n\n"
+    << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
+    << "normalized.  The La Plata style \n"
     << "connection can be obtained by computing C(k) and setting C(k=0) to 0.\n"
     << "\n"
     << " Options:\n";
@@ -224,26 +159,74 @@ void CLoptions::show_usage() const
 
 /*****************************************************************************
  *
- * main and deltat
+ * main and normalize
  *
  */
+
+void normalize_vel(glsim::OLconfiguration& conf)
+{
+  /* Compute polarization */
+  double V[3];
+  memset(V,0,3*sizeof(double));
+  for (int i=0; i<conf.N; ++i) {
+    double v0=sqrt(modsq(conf.v[i]));
+    conf.v[i][0]/=v0;
+    conf.v[i][1]/=v0;
+    conf.v[i][2]/=v0;
+    V[0]+=conf.v[i][0];
+    V[1]+=conf.v[i][1];
+    V[2]+=conf.v[i][2];
+  }
+  V[0]/=conf.N;
+  V[1]/=conf.N;
+  V[2]/=conf.N;
+
+  /* Substract polarization */
+  for (int i=0; i<conf.N; ++i) {
+    conf.v[i][0]-=V[0];
+    conf.v[i][1]-=V[1];
+    conf.v[i][2]-=V[2];
+  }
+
+  /* Normalize */
+  double fn=0;
+  for (int i=0; i<conf.N; ++i)
+    fn+=modsq(conf.v[i]);
+  fn= fn==0 ? 1 : sqrt(fn/conf.N);
+  for (int i=0; i<conf.N; ++i) {
+    conf.v[i][0]/=fn;
+    conf.v[i][1]/=fn;
+    conf.v[i][2]/=fn;
+  }
+}
 
 void wmain(int argc,char *argv[])
 {
   CLoptions o;
   o.parse_command_line(argc,argv);
   
-  glsim::OLconfiguration conf;
+  glsim::OLconfiguration conf,conft;
   glsim::OLconfig_file   cfile(&conf);
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
   if (options.kdir<0 || options.kdir>3)
-    throw glsim::Runtime_error("kdir must be 0,1,3");
+    throw glsim::Runtime_error("kdir must be 0, 1, 2, or 3");
 
-  Ck C(conf.box_length,options.nk,options.kdir,options.connect);
-  while (ifs.read()) {
-    C.push_config(conf);
-  }
+  Ck C(conf.box_length,options.nk,options.kdir==3 ? 0 : options.kdir,options.connect);
+  if (options.kdir==3) {
+    while (ifs.read()) {
+      conft=conf;
+      if (options.connect) normalize_vel(conft);
+      for (int n=0; n<47; ++n) {
+	glsim::apply_cubic_operation(conf,conft.r,n);
+	C.push_config(conft);
+      }
+    }
+  } else 
+    while (ifs.read()) {
+      if (options.connect) normalize_vel(conf);
+      C.push_config(conf);
+    }
   std::cout << C;
 }
 
