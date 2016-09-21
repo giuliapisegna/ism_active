@@ -25,6 +25,26 @@ typedef glsim::ComplexFFT_gsl_2n  cFFT;
 #endif /* HAVE_LIBFFTW3 */
 
 
+int find_k(std::string& find_k_file)
+{
+  FILE *f=fopen(find_k_file.c_str(),"r");
+  if (f==0) throw glsim::Clib_error(HERE);
+  char buf[5000];
+  double Ckmax=-1;
+  int     n=0,nkmax;
+  while (ungetc(fgetc(f),f)!=EOF) {
+    double k,Ci,Cr,C;
+    fgets(buf,5000,f);
+    if (*buf=='#') continue;
+    if (sscanf(buf,"%lg %lg %lg",&k,&Cr,&Ci)!=2)
+      throw glsim::Clib_error(HERE);
+    C=Cr*Cr+Ci*Ci;
+    if (C>Ckmax) {Ckmax=C; nkmax=n;}
+    ++n;
+  }
+  return nkmax;
+}
+
 /*****************************************************************************
  *
  *  Class for C(k,t).  I'll choose one direction of k, parallel to the
@@ -117,14 +137,21 @@ Ckt& Ckt::compute_Ckt()
 
 struct optlst {
 public:
-  int  kn,kdir;
-  bool normalize,connect;
+  int         kn,kdir;
+  bool        normalize,connect;
+  bool        find_k;
+  std::string find_k_file;
   std::vector<std::string> ifiles;
-} options;
 
+  optlst() : kn(-1),find_k(false) {}
+} options;
 
 std::ostream& operator<<(std::ostream& o,const Ckt& Ckt_)
 {
+  double k=sqrt(modsq(Ckt_.k[Ckt_.kdir].data()));
+  o << "# C(k,t) at |k|=" << k
+    << options.find_k ? " (found from file " + options.find_k_file + ")\n" :
+       "(given in command line)\n";
   o << "# time   Ck'   Ck''\n";
   if (options.normalize) {
     dcomplex fac=1./Ckt_.Ckt_[0];
@@ -155,10 +182,13 @@ public:
 CLoptions::CLoptions() : glsim::UtilityCL("ckt")
 {
   hidden_command_line_options().add_options()
-    ("kn",po::value<int>(&options.kn)->required(),"wavevector")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
   command_line_options().add_options()
+    ("wavevector,k",po::value<int>(&options.kn)(),
+     "nk (integer): specify wavevector as multiple of Deltak")
+    ("find-nk-in-file,f",po::value<std::string>(&options.find_k_file),
+     "find nk as that which maximizes C(k), to be read from the given file")
     ("kdirection,d",po::value<int>(&options.kdir)->required(),
      "direction of k: 0=x, 1=y, 2=z, 3=average of 0,1,2 (not good for noncubic boxes)")
     ("connect,C",po::bool_switch(&options.connect)->default_value(false),
@@ -262,6 +292,18 @@ void wmain(int argc,char *argv[])
 
   if (options.kdir<0 || options.kdir>3)
     throw glsim::Runtime_error("kdir must be 0,1,3");
+  if (options.kdir==3) throw glsim::Unimplemented("kdir averaging");
+
+  // Check options and find k
+  if (options.kn>=0 && options.find_k_file.size()>0)
+    throw glsim::Runtime_error("Must give either -k or -f");
+  if (options.find_k_file.size()>0) {
+    options.kn=find_k(options.find_k_file);
+    find_k=true;
+  }
+  if (options.kn<0)
+    throw glsim::Runtime_error("Must give one of -k or -f");
+
 
   double deltat=get_deltat(ifs,conf);
   Ckt C(conf.box_length,deltat,options.kn,options.kdir,options.connect);
