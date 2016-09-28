@@ -6,14 +6,16 @@
 # binaries
 #
 
-bin_PROGRAMS = ism ism_create_conf vicsek traj212col examine ck ckiso ckt	\
-               cktiso cko polarization tcorr1
+bin_PROGRAMS = ism ism_create_conf vicsek ovicsek traj212col examine	\
+               ck ckiso ckt cktiso cko polarization tcorr1
 
 ism_SOURCES = ism.cc isi.cc social.cc
 
 ism_create_conf_SOURCES = ism_create_conf.cc
 
 vicsek_SOURCES = vicsek.cc vici.cc social.cc
+
+ovicsek_SOURCES = ovicsek.cc
 
 traj212col_SOURCES = traj212col.cc
 

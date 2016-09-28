@@ -29,6 +29,20 @@ inline void normalize(double *v)
   v[2]/=mod;
 }
 
+inline void vsum(double *v,double *a,double *b)
+{
+  v[0]=a[0]+b[0];
+  v[1]=a[1]+b[1];
+  v[2]=a[2]+b[2];
+}
+
+inline void vmult(double *v,double a,double *u)
+{
+  v[0]=a*u[0];
+  v[1]=a*u[1];
+  v[2]=a*u[2];
+}
+
 inline std::ostream& operator<<(std::ostream& o,double *v)
 {
   o << '(' << v[0] << ',' << v[1] << ',' << v[2] << ')';

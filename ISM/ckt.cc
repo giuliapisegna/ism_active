@@ -185,7 +185,7 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckt")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
   command_line_options().add_options()
-    ("wavevector,k",po::value<int>(&options.kn)(),
+    ("wavevector,k",po::value<int>(&options.kn),
      "nk (integer): specify wavevector as multiple of Deltak")
     ("find-nk-in-file,f",po::value<std::string>(&options.find_k_file),
      "find nk as that which maximizes C(k), to be read from the given file")
@@ -197,13 +197,13 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckt")
      "Normalize correlation to 1 at t=0")
      ;
 
-  positional_options().add("kn",1).add("ifiles",-1);
+  positional_options().add("ifiles",-1);
 }
 
 void CLoptions::show_usage() const
 {
   std::cerr
-    << "usage: " << progname << "[options] kn ifile [ifile ....]\n\n"
+    << "usage: " << progname << "[options] ifile [ifile ....]\n\n"
     << "Computes C(k,t) (def2) at wave vector kn (the desired multiple of Delta k).\n"
     << "Directions must be specified with option -d.\n"
     << "This computes\n\n"
@@ -299,7 +299,7 @@ void wmain(int argc,char *argv[])
     throw glsim::Runtime_error("Must give either -k or -f");
   if (options.find_k_file.size()>0) {
     options.kn=find_k(options.find_k_file);
-    find_k=true;
+    options.find_k=true;
   }
   if (options.kn<0)
     throw glsim::Runtime_error("Must give one of -k or -f");
