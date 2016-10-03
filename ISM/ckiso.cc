@@ -41,7 +41,7 @@ private:
   glsim::Binned_vector<double> *vec;
   double rnn;
   int    nconf;
-  double rhon;
+  double rho;
 
   friend std::ostream& operator<<(std::ostream& o,const Cr& corr);
 } ;
@@ -54,7 +54,7 @@ Cr::Cr(const glsim::OLconfiguration &c,double rnn_) :
   int nbins=(int) ceil(rmax/(0.1*rnn));
   vec=new glsim::Binned_vector<double>(nbins,0,rmax);
   for (int i=0; i<nbins; (*vec)[i++]=0.) ;
-  rhon=c.N*c.number_density();
+  rho=c.number_density();
 }
 
 Cr::~Cr()
@@ -85,7 +85,7 @@ void Cr::push(const Cr& C)
  
 std::ostream& operator<<(std::ostream& o,const Cr& corr)
 {
-  double f=1./(4*M_PI*corr.rhon*corr.nconf);
+  double f=1./(4*M_PI*corr.rho*corr.nconf);
   for (int i=0; i < corr.vec->nbins(); ++i) {
     double r=corr.vec->binc(i);
     o << r << "  " << f*(*corr.vec)[i]/(r*r) << '\n';
@@ -112,7 +112,7 @@ Ckiso::Ckiso(const glsim::OLconfiguration &conf,const Cr& C,int nk)
   Ck.resize(nk);
   for (int ik=0; ik<nk; ++ik) {
     double k=ik*deltak/M_PI; // Divide by PI because of GSL's definition 
-                                 // of the sinc function
+                             // of the sinc function
     Ck[ik]=0;
     for (int i=0; i<C.size(); ++i) {
       double kr=k*C.r(i);
@@ -141,6 +141,8 @@ public:
   int  nk;
   double rnn;
   std::vector<std::string> ifiles;
+  std::string c_of_r_file;
+
 } options;
 
 
@@ -157,10 +159,10 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckiso")
     ("rnn",po::value<double>(&options.rnn)->required(),"mean NN distance")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
-  // command_line_options().add_options()
-  //   ("connect,C",po::bool_switch(&options.connect)->default_value(false),
-  //    "Computed connected C(k) (Roman style)")
-  //    ;
+  command_line_options().add_options()
+    ("c-of-r,r",po::value<std::string>(&options.c_of_r_file),
+     "also write C(r) to given file")
+     ;
 
   positional_options().add("nk",1).add("rnn",1).add("ifiles",-1);
 }
@@ -172,7 +174,7 @@ void CLoptions::show_usage() const
     << "nk is the number of k values, rnn is the mean nearest-neighbour distance.\n"
     << "This computes the isotropic C(k) for nk wavevectors kn (Delta k computed automatically).\n"
     << "This computes\n\n"
-    << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i exp(i k r_{ij})\n\n"
+    << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\sinc( k r_{ij})\n\n"
     << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
     << "normalized.\n"
     << "\n"
@@ -223,26 +225,6 @@ void normalize_vel(glsim::OLconfiguration& conf)
   }
 }
 
-// void wmain(int argc,char *argv[])
-// {
-//   CLoptions o;
-//   o.parse_command_line(argc,argv);
-  
-//   glsim::OLconfiguration conf;
-//   glsim::OLconfig_file   cfile(&conf);
-//   glsim::H5_multi_file   ifs(options.ifiles,cfile);
-
-//   ifs.read();
-//   Cr C(conf,options.rnn);
-//   do {
-//     normalize_vel(conf);
-//     C.push(conf);
-//   } while (ifs.read());
-
-//   Ckiso Ck(conf,C,options.nk);
-//   std::cout << Ck;
-// }
-
 void wmain(int argc,char *argv[])
 {
   CLoptions o;
@@ -276,8 +258,18 @@ void wmain(int argc,char *argv[])
     C.push(Cloc);
   }
 
-  Ckiso Ck(conf,C,options.nk);                                                  
-  std::cout << Ck;                                                              
+  if (options.c_of_r_file.length()>0) {
+    std::ofstream rfile(options.c_of_r_file);
+    int ixi=0;
+    while (C.corr_nonorm(ixi)>0 && ixi <C.size()) ++ixi;
+    rfile << "# Velocity correlation (real space)\n";
+    rfile << "#\n# r0 (crossing zero) = " << C.r(ixi) << '\n';
+    rfile << "#\n# r    C(r)\n";
+    rfile << C;
+  }
+  Ckiso Ck(conf,C,options.nk);
+  std::cout << "# k   C(k)\n";
+  std::cout << Ck;
 }
 
 int main(int argc, char *argv[])
