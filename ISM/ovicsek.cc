@@ -255,7 +255,7 @@ void OVicsekObservable::write_header()
 {
   fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)||\n");
   fprintf(of,"#- Step and time -| | Av v^2 | |--- Center of mass velocity --| |Polariz.|\n");
-  fprintf(of,"#   Step       Time  <|v_i|^2>       VCMx       VCMy       VXMz        Phi");
+  fprintf(of,"#   Step       Time  <|v_i|^2>       VCMx       VCMy       VXMz        Phi\n");
 }
 
 void OVicsekObservable::observe()
