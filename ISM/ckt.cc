@@ -36,8 +36,11 @@ int find_k(std::string& find_k_file)
     double k,Ci,Cr,C;
     fgets(buf,5000,f);
     if (*buf=='#') continue;
-    if (sscanf(buf,"%lg %lg %lg",&k,&Cr,&Ci)!=2)
-      throw glsim::Clib_error(HERE);
+    errno=0;
+    if (sscanf(buf,"%lg %lg %lg",&k,&Cr,&Ci)!=3) {
+      if (errno!=0) throw glsim::Clib_error(HERE);
+      else throw glsim::Runtime_error("Cannot read, bad format");
+    }
     C=Cr*Cr+Ci*Ci;
     if (C>Ckmax) {Ckmax=C; nkmax=n;}
     ++n;

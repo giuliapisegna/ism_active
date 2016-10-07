@@ -50,8 +50,10 @@ double find_k(std::string& find_k_file)
     double k,C;
     fgets(buf,5000,f);
     if (*buf=='#') continue;
-    if (sscanf(buf,"%lg %lg",&k,&C)!=2)
-      throw glsim::Clib_error(HERE);
+    if (sscanf(buf,"%lg %lg",&k,&C)!=2) {
+      if (errno!=0) throw glsim::Clib_error(HERE);
+      else throw glsim::Runtime_error("Cannot read, bad format");
+    }
     if (C>Ckmax) {Ckmax=C; kmax=k;}
   }
   return kmax;
