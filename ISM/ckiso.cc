@@ -30,7 +30,7 @@ public:
   double deltar() const {return vec->delta();}
   /// Radius corresponding to ith bin
   double r(int i) const {return vec->binc(i);}
-  /// 4\pi\rho r^2 C(r) at ith bin
+  /// 4\pi\rho r^2 C(r) at ith bin, excluding the self (i=j) contribution
   double corr_nonorm(std::size_t i) const
   {return (*vec)[i]/nconf;}
 
@@ -38,6 +38,7 @@ public:
   void push(const Cr&);
 
 private:
+  double Cr0;
   glsim::Binned_vector<double> *vec;
   double rnn;
   int    nconf;
@@ -47,7 +48,7 @@ private:
 } ;
 
 Cr::Cr(const glsim::OLconfiguration &c,double rnn_) :
-  rnn(rnn_), nconf(0)
+  rnn(rnn_), nconf(0), Cr0(0.)
 {
   double rmax=sqrt(c.box_length[0]*c.box_length[0] + c.box_length[1]*c.box_length[1] +
 		   c.box_length[2]*c.box_length[2])/1.99;
@@ -65,7 +66,7 @@ Cr::~Cr()
 void Cr::push(const glsim::OLconfiguration& conf)
 {
   for (int i=0; i<conf.N; ++i) {
-    (*vec)[0]+=dotp(conf.v[i],conf.v[i])/conf.N;
+    Cr0+=dotp(conf.v[i],conf.v[i])/conf.N;
   }
   for (int i=0; i<conf.N-1; ++i) {
     for (int j=i+1; j<conf.N; ++j) {
@@ -78,6 +79,7 @@ void Cr::push(const glsim::OLconfiguration& conf)
 
 void Cr::push(const Cr& C)
 {
+  Cr0+=C.Cr0;
   for (int i=0; i<vec->nbins(); ++i)
     (*vec)[i]+=(*(C.vec))[i];
   nconf+=C.nconf;
@@ -85,7 +87,8 @@ void Cr::push(const Cr& C)
  
 std::ostream& operator<<(std::ostream& o,const Cr& corr)
 {
-  double f=1./(4*M_PI*corr.rho*corr.nconf);
+  double f=1./(4*M_PI*corr.rho*corr.nconf*corr.vec->delta());
+  o << 0. << " " << corr.Cr0/corr.nconf << '\n';
   for (int i=0; i < corr.vec->nbins(); ++i) {
     double r=corr.vec->binc(i);
     o << r << "  " << f*(*corr.vec)[i]/(r*r) << '\n';
@@ -113,7 +116,9 @@ Ckiso::Ckiso(const glsim::OLconfiguration &conf,const Cr& C,int nk)
   for (int ik=0; ik<nk; ++ik) {
     double k=ik*deltak/M_PI; // Divide by PI because of GSL's definition 
                              // of the sinc function
-    Ck[ik]=0;
+  // We start with 1 instead of 0 because corr_nonorm, which is used
+  // in the loop below, does note include the self (i=j) contribution
+    Ck[ik]=1;
     for (int i=0; i<C.size(); ++i) {
       double kr=k*C.r(i);
       Ck[ik]+=C.corr_nonorm(i)*gsl_sf_sinc(kr);
