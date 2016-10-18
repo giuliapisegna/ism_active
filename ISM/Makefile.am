@@ -6,6 +6,8 @@
 # binaries
 #
 
+EXTRA_DIST = social.hh isi.hh 3dvecs.hh vici.hh ovicsek.hh
+
 bin_PROGRAMS = ism ism_create_conf vicsek ovicsek traj212col examine	\
                ck ckiso ckt cktiso cko polarization tcorr1
 

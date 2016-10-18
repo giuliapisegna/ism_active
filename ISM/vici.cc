@@ -14,6 +14,8 @@
  *
  */
 
+#include <cmath>
+
 #include "3dvecs.hh"
 #include "vici.hh"
 
@@ -183,7 +185,7 @@ void VicsekSimulation::step()
     }
 
     // 4. Update v
-    if (isnan(w)) {
+    if (std::isnan(w)) {
       // Problem: constraint cannot be enforced with a lagrange multiplier (centripetal force)
       // Do it the Vicsek way (just renormalizing v)
 
