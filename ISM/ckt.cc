@@ -50,6 +50,61 @@ int find_k(std::string& find_k_file)
 
 /*****************************************************************************
  *
+ *  The following class will compute the current j(k,t) from which the
+ *  correlation function can be computed.
+ *
+ */
+
+class Current_jk {
+public:
+  Current_jk(double box_length[],int kn,int kdir);
+
+  Current_jk& push_config(glsim::OLconfiguration &conf);
+  const double* wavevector() {return k;}
+
+  const vcomplex& jkx() {return jkx_;}
+  const vcomplex& jky() {return jky_;}
+  const vcomplex& jkz() {return jkz_;}
+
+private:
+  int  kn,kdir;
+  double k[3],deltak_[3];
+
+  vcomplex jkx_,jky_,jkz_;
+} ;
+
+Current_jk::Current_jk(double box_length[],int kn_,int kdir_) :
+  kn(kn_), kdir(kdir_)
+{
+  // choose deltak
+  deltak_[0]=2*M_PI/box_length[0];
+  deltak_[1]=2*M_PI/box_length[1];
+  deltak_[2]=2*M_PI/box_length[2];
+
+  memset(k,0,3*sizeof(double));
+  k[kdir]=deltak_[kdir]*kn;
+}
+
+Current_jk& Current_jk::push_config(glsim::OLconfiguration &conf)
+{
+  vcomplex jjk(3,dcomplex(0.));
+
+  for (int i=0; i<conf.N; i++) {
+    double kr= k[0]*conf.r[i][0] + k[1]*conf.r[i][1] + k[2]*conf.r[i][2];
+    jjk[0]+=conf.v[i][0]*exp(dcomplex(0,-1)*kr);
+    jjk[1]+=conf.v[i][1]*exp(dcomplex(0,-1)*kr);
+    jjk[2]+=conf.v[i][2]*exp(dcomplex(0,-1)*kr);
+  }
+
+  jkx_.push_back(jjk[0]/sqrt(conf.N));
+  jky_.push_back(jjk[1]/sqrt(conf.N));
+  jkz_.push_back(jjk[2]/sqrt(conf.N));
+
+  return *this;
+}
+
+/*****************************************************************************
+ *
  *  Class for C(k,t).  I'll choose one direction of k, parallel to the
  *  cooordinate axes (set on construction), this way PBCs are
  *  correctly enforced.
@@ -58,82 +113,39 @@ int find_k(std::string& find_k_file)
 
 class Ckt {
 public:
-  Ckt(double box_length[],double deltat_,int kn_,int kdir_,bool connect);
-
-  Ckt& push_config(glsim::OLconfiguration &conf);
+  Ckt(double deltat_,Current_jk &jk);
   Ckt& compute_Ckt();
-  const vcomplex& Ckt_data() const {return Ckt_;} 
-
-private:
-  bool                              connect;
-  int                               Npart,kn,kdir;
-  double                            deltak_[3];
-  std::vector<std::vector<double>>  k;
-  double                            deltat;
-  vcomplex                          jkx_,jky_,jkz_;
-  vcomplex                          Ckt_;
   
-  vcomplex j_k(glsim::OLconfiguration &,double k[]);
+private:
+  double      deltat;
+  Current_jk& jk;
+  vcomplex     Cktx,Ckty,Cktz;
 
   friend std::ostream& operator<<(std::ostream&,const Ckt&); 
 } ;
 
-Ckt::Ckt(double box_length[],double deltat_,int kn_,int kdir_,bool connect_) :
-  connect(connect_),
+Ckt::Ckt(double deltat_,Current_jk &jk_) :
   deltat(deltat_),
-  kn(kn_), kdir(kdir_)
-{
-  // choose deltak
-  deltak_[0]=2*M_PI/box_length[0];
-  deltak_[1]=2*M_PI/box_length[1];
-  deltak_[2]=2*M_PI/box_length[2];
-
-  k.resize(3);
-  for (int i=0; i<2; ++i) {
-    k[i].resize(3,0);
-    k[i][i]=deltak_[kdir]*kn;
-  }
-}
-
-vcomplex Ckt::j_k(glsim::OLconfiguration &conf,double *k)
-{
-  std::vector<dcomplex> rk(3,dcomplex(0));
-
-  for (int i=0; i<conf.N; i++) {
-    double kr= k[0]*conf.r[i][0] + k[1]*conf.r[i][1] + k[2]*conf.r[i][2];
-    rk[0]+=conf.v[i][0]*exp(dcomplex(0,-1)*kr);
-    rk[1]+=conf.v[i][1]*exp(dcomplex(0,-1)*kr);
-    rk[2]+=conf.v[i][2]*exp(dcomplex(0,-1)*kr);
-  }
-  return rk;
-}
-
-Ckt& Ckt::push_config(glsim::OLconfiguration &conf)
-{
-  Npart=conf.N;
-  std::vector<dcomplex> jk_;
-  jk_=j_k(conf,k[kdir].data());
-  jkx_.push_back(jk_[0]);
-  jky_.push_back(jk_[1]);
-  jkz_.push_back(jk_[2]);
-
-  return *this;
-}
+  jk(jk_)
+{}
 
 Ckt& Ckt::compute_Ckt()
 {
-  dcomplex fac=1./dcomplex(Npart,0);
-  int Cktlen=jkx_.size()/2;
-  Ckt_.clear();
-  Ckt_.resize(Cktlen,dcomplex(0,0));
+  int clen=jk.jkx().size()/2;
   cFFT FF(glsim::FFT::in_place);
 
-  correlation_1d_tti_fft(jkx_,FF,Cktlen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=fac*FF.tdatum(j);
-  correlation_1d_tti_fft(jky_,FF,Cktlen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=fac*FF.tdatum(j);
-  correlation_1d_tti_fft(jkz_,FF,Cktlen);
-  for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=fac*FF.tdatum(j);
+  correlation_1d_tti_fft(jk.jkx(),FF,clen);
+  Cktx=FF.tdata();
+  correlation_1d_tti_fft(jk.jky(),FF,clen);
+  Ckty=FF.tdata();
+  correlation_1d_tti_fft(jk.jkz(),FF,clen);
+  Cktz=FF.tdata();
+
+  // for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]=FF.tdatum(j);
+  // correlation_1d_tti_fft(jk.jky(),FF,clen);
+  // for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=FF.tdatum(j);
+  // correlation_1d_tti_fft(jk.jkz(),FF,clen);
+  // for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=FF.tdatum(j);
 
   return *this;
 }
@@ -144,6 +156,8 @@ public:
   bool        normalize,connect;
   bool        find_k;
   std::string find_k_file;
+  bool        write_jk;
+  std::string jk_file;
   std::vector<std::string> ifiles;
 
   optlst() : kn(-1),find_k(false) {}
@@ -151,22 +165,24 @@ public:
 
 std::ostream& operator<<(std::ostream& o,const Ckt& Ckt_)
 {
-  double k=sqrt(modsq(Ckt_.k[Ckt_.kdir].data()));
-  o << "# C(k,t) at |k|=" << k
-    << options.find_k ? " (found from file " + options.find_k_file + ")\n" :
-       "(given in command line)\n";
   o << "# time   Ck'   Ck''\n";
   if (options.normalize) {
-    dcomplex fac=1./Ckt_.Ckt_[0];
-    for (int i=0; i<Ckt_.Ckt_.size(); i++) {
-      dcomplex cc=Ckt_.Ckt_[i]*fac;
-      o << i*Ckt_.deltat << "  " << cc.real()
-	<< "  " << cc.imag() << '\n';
-    }
+    // dcomplex fac=1./Ckt_.Ckt_[0];
+    // for (int i=0; i<Ckt_.Ckt_.size(); i++) {
+    //   dcomplex cc=Ckt_.Ckt_[i]*fac;
+    //   o << i*Ckt_.deltat << "  " << cc.real()
+    // 	<< "  " << cc.imag() << '\n';
+    // }
+    o << "unimplemented\n";
   } else {
-    for (int i=0; i<Ckt_.Ckt_.size(); i++)
-      o << i*Ckt_.deltat << "  " << Ckt_.Ckt_[i].real()
-	<< "  " << Ckt_.Ckt_[i].imag() << '\n';
+    for (int i=0; i<Ckt_.Cktx.size(); i++)
+      o << i*Ckt_.deltat << "  "
+	<< Ckt_.Cktx[i].real() << ' ' << Ckt_.Cktx[i].imag() << "   "
+	<< Ckt_.Ckty[i].real() << ' ' << Ckt_.Ckty[i].imag() << "   "
+	<< Ckt_.Cktz[i].real() << ' ' << Ckt_.Cktz[i].imag() << "   "
+	<< ( Ckt_.Cktx[i].real() + Ckt_.Ckty[i].real() + Ckt_.Cktz[i].real() )
+	<< ' ' << ( Ckt_.Cktx[i].imag() + Ckt_.Ckty[i].imag() + Ckt_.Cktz[i].imag() )
+	<< '\n';
   }
 }
 
@@ -192,6 +208,7 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckt")
      "nk (integer): specify wavevector as multiple of Deltak")
     ("find-nk-in-file,f",po::value<std::string>(&options.find_k_file),
      "find nk as that which maximizes C(k), to be read from the given file")
+    ("print-jk,j",po::value<std::string>(&options.jk_file),"write current j(k) to given file")
     ("kdirection,d",po::value<int>(&options.kdir)->required(),
      "direction of k: 0=x, 1=y, 2=z, 3=average of 0,1,2 (not good for noncubic boxes)")
     ("connect,C",po::bool_switch(&options.connect)->default_value(false),
@@ -306,17 +323,35 @@ void wmain(int argc,char *argv[])
   }
   if (options.kn<0)
     throw glsim::Runtime_error("Must give one of -k or -f");
-
+  options.write_jk = options.jk_file.size()>0;
 
   double deltat=get_deltat(ifs,conf);
-  Ckt C(conf.box_length,deltat,options.kn,options.kdir,options.connect);
+  Current_jk jk(conf.box_length,options.kn,options.kdir);
   while (ifs.read()) {
     conf.unfold_coordinates();
     substract_cm(conf);
     if (options.connect) normalize_vel(conf);
-    C.push_config(conf);
+    jk.push_config(conf);
   }
+
+  if (options.write_jk) {
+    std::ofstream rfile(options.jk_file);
+    rfile << "# t    jkx'  jkx''  jky'  jky''  jkz'  jkz''\n";
+    for (int i=0; i<jk.jkx().size(); ++i)
+      rfile << i*deltat << "  "
+	    << jk.jkx()[i].real() << ' ' << jk.jkx()[i].imag() << "  "
+	    << jk.jky()[i].real() << ' ' << jk.jky()[i].imag() << "  "
+	    << jk.jkz()[i].real() << ' ' << jk.jkz()[i].imag() << "\n";
+  }
+
+  Ckt C(deltat,jk);
   C.compute_Ckt();
+  double k=sqrt(modsq(jk.wavevector()));
+  std::cout << "# C(k,t) at |k|=" << k
+	    << options.find_k ? " (found from file " + options.find_k_file + ")\n" :
+    "(given in command line)\n";
+  if (options.kdir>2) std::cout << "# AVERAGED over cubic lattice transformations\n";
+  std::cout << "#\n";
   std::cout << C;
 }
 
