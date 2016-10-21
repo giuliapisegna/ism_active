@@ -94,14 +94,6 @@ Ck& Ck::push_config(glsim::OLconfiguration &conf)
   return *this;
 }
 
-std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
-{
-  o << "# k   Ck'   Ck''\n";
-  double dk = Ck_.kdir<3 && Ck_.kdir>=0 ? Ck_.deltak_[Ck_.kdir] : Ck_.deltak_[0];
-  for (int i=0; i<Ck_.Ck_.size(); i++)
-    o << i*dk << "  " << Ck_.Ck_[i].real() << "  " << Ck_.Ck_[i].imag() << '\n';
-}
-
 /******************************************************************************
  *
  * Options and main
@@ -115,6 +107,23 @@ public:
   std::vector<std::string> ifiles;
 } options;
 
+std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
+{
+  double dk = Ck_.kdir<3 && Ck_.kdir>=0 ? Ck_.deltak_[Ck_.kdir] : Ck_.deltak_[0];
+
+  double S1=1./Ck_.Ck_[1].real();
+  S1*=S1;
+  double S2=1./Ck_.Ck_[2].real();
+  S2*=S2;
+  double B=-3*dk*dk/(S1-S2);
+  double A=S1-B*dk*dk;
+
+  o << "#  C(k) along direction " << options.kdir << '\n';
+  o << "#  \\xi^2 (Caracciolo estimate with 2nd and 3d points) = " << B/A << '\n';
+  o << "# k   Ck'   Ck''\n";
+  for (int i=0; i<Ck_.Ck_.size(); i++)
+    o << i*dk << "  " << Ck_.Ck_[i].real() << "  " << Ck_.Ck_[i].imag() << '\n';
+}
 
 class CLoptions : public glsim::UtilityCL {
 public:

@@ -25,12 +25,14 @@ public:
   ~Cr();
 
   /// Number of bins
-  int    size() const {return vec->nbins();}
+  int    size() const {return esize;}
+  /// Number of bins including all particles (up to distances larger that box/2)
+  int    extended_size() const {return vec->nbins();}
   /// \f$\Delta r\f$
   double deltar() const {return vec->delta();}
   /// Radius corresponding to ith bin
   double r(int i) const {return vec->binc(i);}
-  /// 4\pi\rho r^2 C(r) at ith bin, excluding the self (i=j) contribution
+  /// 4\pi\rho r^2 \Delta r C(r) at ith bin, excluding the self (i=j) contribution
   double corr_nonorm(std::size_t i) const
   {return (*vec)[i]/nconf;}
 
@@ -41,6 +43,10 @@ private:
   double Cr0;
   glsim::Binned_vector<double> *vec;
   double rnn;
+  int    esize;   // The size as seen from the outside.  Internally we
+		  // keep a few more bins for convenience, but we must
+		  // not report values of r larger than half the box
+		  // side
   int    nconf;
   double rho;
 
@@ -52,8 +58,11 @@ Cr::Cr(const glsim::OLconfiguration &c,double rnn_) :
 {
   double rmax=sqrt(c.box_length[0]*c.box_length[0] + c.box_length[1]*c.box_length[1] +
 		   c.box_length[2]*c.box_length[2])/1.99;
+  double lmax=std::min(c.box_length[0],c.box_length[1]);
+  lmax=std::min(lmax,c.box_length[2]);
   int nbins=(int) ceil(rmax/(0.1*rnn));
   vec=new glsim::Binned_vector<double>(nbins,0,rmax);
+  esize=vec->binn(lmax/2.);
   for (int i=0; i<nbins; (*vec)[i++]=0.) ;
   rho=c.number_density();
 }
@@ -89,7 +98,7 @@ std::ostream& operator<<(std::ostream& o,const Cr& corr)
 {
   double f=1./(4*M_PI*corr.rho*corr.nconf*corr.vec->delta());
   o << 0. << " " << corr.Cr0/corr.nconf << '\n';
-  for (int i=0; i < corr.vec->nbins(); ++i) {
+  for (int i=0; i < corr.size(); ++i) {
     double r=corr.vec->binc(i);
     o << r << "  " << f*(*corr.vec)[i]/(r*r) << '\n';
   }
@@ -116,10 +125,12 @@ Ckiso::Ckiso(const glsim::OLconfiguration &conf,const Cr& C,int nk)
   for (int ik=0; ik<nk; ++ik) {
     double k=ik*deltak/M_PI; // Divide by PI because of GSL's definition 
                              // of the sinc function
-  // We start with 1 instead of 0 because corr_nonorm, which is used
-  // in the loop below, does note include the self (i=j) contribution
+    // We start with 1 instead of 0 because corr_nonorm, which is used
+    // in the loop below, does note include the self (i=j) contribution
+    // also note that we don't multiply by \Delta r because we use corr_nonorm
+    // which return value is already multiplied by \Delta r
     Ck[ik]=1;
-    for (int i=0; i<C.size(); ++i) {
+    for (int i=0; i<C.extended_size(); ++i) {  // extended_size ensures all pairs are included in sum
       double kr=k*C.r(i);
       Ck[ik]+=C.corr_nonorm(i)*gsl_sf_sinc(kr);
     }
@@ -143,6 +154,7 @@ std::ostream& operator<<(std::ostream& o,const Ckiso& ck)
 
 struct optlst {
 public:
+  bool multithreaded;
   int  nk;
   double rnn;
   std::vector<std::string> ifiles;
@@ -165,6 +177,8 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckiso")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
   command_line_options().add_options()
+    ("multithreaded,m",po::bool_switch(&options.multithreaded),
+     "process several configurations in parallel")
     ("c-of-r,r",po::value<std::string>(&options.c_of_r_file),
      "also write C(r) to given file")
      ;
@@ -243,24 +257,31 @@ void wmain(int argc,char *argv[])
   Cr C(conf,options.rnn);
   ifs.rewind();
 
-  #pragma omp parallel
-  {
-    glsim::OLconfiguration confloc=conf;
-    Cr Cloc(confloc,options.rnn);
+  if (options.multithreaded) {
+     #pragma omp parallel
+     {
+       glsim::OLconfiguration confloc=conf;
+       Cr Cloc(confloc,options.rnn);
 
-    #pragma omp for schedule(static) nowait
-    for (hsize_t rec=0; rec<ifs.size(); ++rec) {
-      #pragma omp critical
-      {
-	ifs.read();
-	confloc=conf;
-      }
-      normalize_vel(confloc);
-      Cloc.push(confloc);
+       #pragma omp for schedule(static) nowait
+       for (hsize_t rec=0; rec<ifs.size(); ++rec) {
+	 #pragma omp critical
+	 {
+	   ifs.read();
+	   confloc=conf;
+	 }
+	 normalize_vel(confloc);
+	 Cloc.push(confloc);
+       }
+
+       #pragma omp critical
+       C.push(Cloc);
+     }
+  } else {
+    while (ifs.read()) {
+      normalize_vel(conf);
+      C.push(conf);
     }
-
-    #pragma omp critical
-    C.push(Cloc);
   }
 
   if (options.c_of_r_file.length()>0) {
