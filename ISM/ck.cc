@@ -112,10 +112,8 @@ std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
   double dk = Ck_.kdir<3 && Ck_.kdir>=0 ? Ck_.deltak_[Ck_.kdir] : Ck_.deltak_[0];
 
   double S1=1./Ck_.Ck_[1].real();
-  S1*=S1;
   double S2=1./Ck_.Ck_[2].real();
-  S2*=S2;
-  double B=-3*dk*dk/(S1-S2);
+  double B=(S1-S2)/(-3*dk*dk);
   double A=S1-B*dk*dk;
 
   o << "#  C(k) along direction " << options.kdir << '\n';
