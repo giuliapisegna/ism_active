@@ -69,7 +69,7 @@ double find_k(std::string& find_k_file)
 struct optlst {
 public:
   double      k;
-  double      tmax;
+  double      tmin,tmax;
   bool        find_k;
   std::string find_k_file;
   bool        normalize;
@@ -99,6 +99,8 @@ CLoptions::CLoptions() : glsim::UtilityCL("cktiso")
      "find k as that which maximizes C(k), to be read from the given file")
     ("tmax,t",po::value<double>(&options.tmax)->default_value(-1),
      "Compute correlation up to arg (negative means all available times)")
+    ("tmin,n",po::value<double>(&options.tmin)->default_value(0),
+     "Compute correlation starting from given time")
     ("multi-thread,m",po::bool_switch(&options.multi_thread)->default_value(false),
      "use multiple threads to loop over pairs of particles")
      ;
@@ -207,28 +209,37 @@ void wmain(int argc,char *argv[])
   double deltat=get_deltat(ifs,conf);
   std::vector<double> ckt;
   hsize_t ntimes=ifs.size()/2;
+  hsize_t nmintime=0;
   if (options.tmax>0)
     ntimes=(hsize_t) ceil(options.tmax/deltat);
-  ckt.resize(ntimes);
+  if (options.tmin>0)
+    nmintime=(hsize_t) floor(options.tmin/deltat);
+  ckt.resize(ntimes,0.);
+
+  // Prepare conf and conf0, so that we don't need to copy conf onto conf0 later
+  ifs.rewind();
+  ifs.read();
+  conf0=conf;
 
   // All ready, go
-
-  int count=0;
-
-  for (hsize_t rect0=0; rect0<ifs.size(); ++rect0) {
+  for (hsize_t rect0=0; rect0<ifs.size()-nmintime; ++rect0) {
     ifs.seek(rect0);
     ifs.read();
     conf.unfold_coordinates_reset();
-    conf0=conf;
+    memcpy(conf0.r,conf.r,3*conf.N*sizeof(double));
+    memcpy(conf0.v,conf.v,3*conf.N*sizeof(double));
+    // conf0=conf;
     substract_cm(conf0);
     normalize_vel(conf0);
+    for (hsize_t r=rect0;  r<rect0+nmintime; ++r) {
+      conf.unfold_coordinates();
+      ifs.read();
+    }
     do {
       conf.unfold_coordinates();
       normalize_vel(conf);
       substract_cm(conf);
       ckt[ifs.pos()-1-rect0]+=corrf(conf0,conf,options.k);
-      double ufa=corrf(conf0,conf,options.k);
-      if (ifs.pos()-1-rect0==0) count++;
     } while (ifs.read() && ifs.pos()-1-rect0<ntimes);
   }
   for (int i=0; i<ntimes; ++i)
