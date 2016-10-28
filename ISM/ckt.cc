@@ -61,6 +61,7 @@ public:
 
   Current_jk& push_config(glsim::OLconfiguration &conf);
   const double* wavevector() {return k;}
+  void clear() {jkx_.clear(); jky_.clear(); jkz_.clear();}
 
   const vcomplex& jkx() {return jkx_;}
   const vcomplex& jky() {return jky_;}
@@ -113,39 +114,34 @@ Current_jk& Current_jk::push_config(glsim::OLconfiguration &conf)
 
 class Ckt {
 public:
-  Ckt(double deltat_,Current_jk &jk);
+  Ckt(double deltat_,Current_jk *jk=0);
   Ckt& compute_Ckt();
   
+  vcomplex     Cktx,Ckty,Cktz;
+
 private:
   double      deltat;
-  Current_jk& jk;
-  vcomplex     Cktx,Ckty,Cktz;
+  Current_jk* jk;
 
   friend std::ostream& operator<<(std::ostream&,const Ckt&); 
 } ;
 
-Ckt::Ckt(double deltat_,Current_jk &jk_) :
+Ckt::Ckt(double deltat_,Current_jk *jk_) :
   deltat(deltat_),
   jk(jk_)
 {}
 
 Ckt& Ckt::compute_Ckt()
 {
-  int clen=jk.jkx().size()/2;
+  int clen=jk->jkx().size()/2;
   cFFT FF(glsim::FFT::in_place);
 
-  correlation_1d_tti_fft(jk.jkx(),FF,clen);
+  correlation_1d_tti_fft(jk->jkx(),FF,clen);
   Cktx=FF.tdata();
-  correlation_1d_tti_fft(jk.jky(),FF,clen);
+  correlation_1d_tti_fft(jk->jky(),FF,clen);
   Ckty=FF.tdata();
-  correlation_1d_tti_fft(jk.jkz(),FF,clen);
+  correlation_1d_tti_fft(jk->jkz(),FF,clen);
   Cktz=FF.tdata();
-
-  // for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]=FF.tdatum(j);
-  // correlation_1d_tti_fft(jk.jky(),FF,clen);
-  // for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=FF.tdatum(j);
-  // correlation_1d_tti_fft(jk.jkz(),FF,clen);
-  // for (int j=0; j<FF.tdata_rw().size(); j++) Ckt_[j]+=FF.tdatum(j);
 
   return *this;
 }
@@ -165,24 +161,19 @@ public:
 
 std::ostream& operator<<(std::ostream& o,const Ckt& Ckt_)
 {
-  o << "# time   Ck'   Ck''\n";
+  o << "# time   Ck'   Ck''  Cktx (etc)\n";
+  dcomplex fac=1.;
   if (options.normalize) {
-    // dcomplex fac=1./Ckt_.Ckt_[0];
-    // for (int i=0; i<Ckt_.Ckt_.size(); i++) {
-    //   dcomplex cc=Ckt_.Ckt_[i]*fac;
-    //   o << i*Ckt_.deltat << "  " << cc.real()
-    // 	<< "  " << cc.imag() << '\n';
-    // }
-    o << "unimplemented\n";
-  } else {
-    for (int i=0; i<Ckt_.Cktx.size(); i++)
-      o << i*Ckt_.deltat << "  "
-	<< Ckt_.Cktx[i].real() << ' ' << Ckt_.Cktx[i].imag() << "   "
-	<< Ckt_.Ckty[i].real() << ' ' << Ckt_.Ckty[i].imag() << "   "
-	<< Ckt_.Cktz[i].real() << ' ' << Ckt_.Cktz[i].imag() << "   "
-	<< ( Ckt_.Cktx[i].real() + Ckt_.Ckty[i].real() + Ckt_.Cktz[i].real() )
-	<< ' ' << ( Ckt_.Cktx[i].imag() + Ckt_.Ckty[i].imag() + Ckt_.Cktz[i].imag() )
-	<< '\n';
+    dcomplex C0=Ckt_.Cktx[0]+Ckt_.Ckty[0]+Ckt_.Cktz[0];
+    fac=1./C0;
+  }
+  for (int i=0; i<Ckt_.Cktx.size(); i++) {
+    dcomplex cc=fac*(Ckt_.Cktx[i]+Ckt_.Ckty[i]+Ckt_.Cktz[i]);
+    o << i*Ckt_.deltat << "  " << cc.real() << "  " << cc.imag() << "  "
+      << Ckt_.Cktx[i].real() << ' ' << Ckt_.Cktx[i].imag() << "   "
+      << Ckt_.Ckty[i].real() << ' ' << Ckt_.Ckty[i].imag() << "   "
+      << Ckt_.Cktz[i].real() << ' ' << Ckt_.Cktz[i].imag() << "   "
+      << '\n';
   }
 }
 
@@ -311,8 +302,7 @@ void wmain(int argc,char *argv[])
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
   if (options.kdir<0 || options.kdir>3)
-    throw glsim::Runtime_error("kdir must be 0,1,3");
-  if (options.kdir==3) throw glsim::Unimplemented("kdir averaging");
+    throw glsim::Runtime_error("kdir must be 0,1,2,3");
 
   // Check options and find k
   if (options.kn>=0 && options.find_k_file.size()>0)
@@ -326,33 +316,75 @@ void wmain(int argc,char *argv[])
   options.write_jk = options.jk_file.size()>0;
 
   double deltat=get_deltat(ifs,conf);
-  Current_jk jk(conf.box_length,options.kn,options.kdir);
-  while (ifs.read()) {
-    conf.unfold_coordinates();
-    substract_cm(conf);
-    if (options.connect) normalize_vel(conf);
-    jk.push_config(conf);
-  }
+  Current_jk jk(conf.box_length,options.kn,options.kdir>2 ? 0 : options.kdir);
 
-  if (options.write_jk) {
-    std::ofstream rfile(options.jk_file);
-    rfile << "# t    jkx'  jkx''  jky'  jky''  jkz'  jkz''\n";
-    for (int i=0; i<jk.jkx().size(); ++i)
-      rfile << i*deltat << "  "
-	    << jk.jkx()[i].real() << ' ' << jk.jkx()[i].imag() << "  "
-	    << jk.jky()[i].real() << ' ' << jk.jky()[i].imag() << "  "
-	    << jk.jkz()[i].real() << ' ' << jk.jkz()[i].imag() << "\n";
-  }
-
-  Ckt C(deltat,jk);
-  C.compute_Ckt();
   double k=sqrt(modsq(jk.wavevector()));
   std::cout << "# C(k,t) at |k|=" << k
 	    << options.find_k ? " (found from file " + options.find_k_file + ")\n" :
     "(given in command line)\n";
-  if (options.kdir>2) std::cout << "# AVERAGED over cubic lattice transformations\n";
-  std::cout << "#\n";
-  std::cout << C;
+
+  if (options.kdir<=2)  { // Single direction
+
+    while (ifs.read()) {
+      conf.unfold_coordinates();
+      substract_cm(conf);
+      if (options.connect) normalize_vel(conf);
+      jk.push_config(conf);
+    }
+
+    if (options.write_jk) {
+      std::ofstream rfile(options.jk_file);
+      rfile << "# t    jkx'  jkx''  jky'  jky''  jkz'  jkz''\n";
+      for (int i=0; i<jk.jkx().size(); ++i)
+	rfile << i*deltat << "  "
+	      << jk.jkx()[i].real() << ' ' << jk.jkx()[i].imag() << "  "
+	      << jk.jky()[i].real() << ' ' << jk.jky()[i].imag() << "  "
+	      << jk.jkz()[i].real() << ' ' << jk.jkz()[i].imag() << "\n";
+    }
+
+    Ckt C(deltat,&jk);
+    C.compute_Ckt();
+    std::cout << "#\n";
+    std::cout << C;
+
+  } else { // average over rotations
+
+    std::cout << "# AVERAGED over cubic lattice transformations\n";
+    std::cout << "#\n";
+
+    Ckt C(deltat);
+    Ckt C2(deltat,&jk);
+
+    for (int nop=0; nop<46; ++nop) {
+      ifs.rewind();
+      jk.clear();
+      while (ifs.read()) {
+	conf.unfold_coordinates();
+	substract_cm(conf);
+	if (options.connect) normalize_vel(conf);
+	glsim::apply_cubic_operation(conf,conf.r,nop);
+	jk.push_config(conf);
+      }
+      C2.compute_Ckt();
+
+      if (C.Cktx.empty()) {
+	C.Cktx.resize(C2.Cktx.size());
+	for (int j=0; j<C.Cktx.size(); ++j) C.Cktx[j]=C2.Cktx[j]/dcomplex(46,0);
+	C.Ckty.resize(C2.Ckty.size());
+	for (int j=0; j<C.Ckty.size(); ++j) C.Ckty[j]=C2.Ckty[j]/dcomplex(46,0);
+	C.Cktz.resize(C2.Cktz.size());
+	for (int j=0; j<C.Cktz.size(); ++j) C.Cktz[j]=C2.Cktz[j]/dcomplex(46,0);
+      } else {
+	for (int j=0; j<C.Cktx.size(); ++j) C.Cktx[j]+=C2.Cktx[j]/dcomplex(46,0);
+	for (int j=0; j<C.Ckty.size(); ++j) C.Ckty[j]+=C2.Ckty[j]/dcomplex(46,0);
+	for (int j=0; j<C.Cktz.size(); ++j) C.Cktz[j]+=C2.Cktz[j]/dcomplex(46,0);
+      }
+
+    }
+
+    std::cout << C;
+  }
+
 }
 
 int main(int argc, char *argv[])
