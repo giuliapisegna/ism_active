@@ -93,7 +93,7 @@ CLoptions::CLoptions() : glsim::UtilityCL("cktiso")
     ;
   command_line_options().add_options()
     ("normalize,N",po::bool_switch(&options.normalize)->default_value(false),
-     "Normalize correlation to 1 at t=0")
+     "Normalize correlation to 1 at t=0 (not good with -n)")
     ("wavevector,k",po::value<double>(&options.k),"wavevector modulus")
     ("find-k-in-file,f",po::value<std::string>(&options.find_k_file),
      "find k as that which maximizes C(k), to be read from the given file")
@@ -208,13 +208,15 @@ void wmain(int argc,char *argv[])
   // Set maxtime
   double deltat=get_deltat(ifs,conf);
   std::vector<double> ckt;
-  hsize_t ntimes=ifs.size()/2;
+  hsize_t nmaxtime=ifs.size()/2;
   hsize_t nmintime=0;
   if (options.tmax>0)
-    ntimes=(hsize_t) ceil(options.tmax/deltat);
-  if (options.tmin>0)
+    nmaxtime=(hsize_t) ceil(options.tmax/deltat);
+  if (options.tmin>0) {
     nmintime=(hsize_t) floor(options.tmin/deltat);
-  ckt.resize(ntimes,0.);
+    options.normalize=false;
+  }
+  ckt.resize(nmaxtime+1,0.);
 
   // Prepare conf and conf0, so that we don't need to copy conf onto conf0 later
   ifs.rewind();
@@ -240,16 +242,16 @@ void wmain(int argc,char *argv[])
       normalize_vel(conf);
       substract_cm(conf);
       ckt[ifs.pos()-1-rect0]+=corrf(conf0,conf,options.k);
-    } while (ifs.read() && ifs.pos()-1-rect0<ntimes);
+    } while (ifs.read() && ifs.pos()-1-rect0<=nmaxtime);
   }
-  for (int i=0; i<ntimes; ++i)
+  for (int i=0; i<=nmaxtime; ++i)
     ckt[i]/=ifs.size()-i;
 
   // Write
   std::cout << "# C(k,t) for k = " << options.k << '\n';
   std::cout << "# t  C(k,t)\n";
   double norm = options.normalize ? 1./ckt[0] : 1.;
-  for (int i=0; i<ntimes; ++i)
+  for (int i=nmintime; i<=nmaxtime; ++i)
     std::cout << i*deltat << "   " << norm*ckt[i] << '\n';
 }
 
