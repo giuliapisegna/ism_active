@@ -249,6 +249,7 @@ void wmain(int argc,char *argv[])
 
   // Write
   std::cout << "# C(k,t) for k = " << options.k << '\n';
+  std::cout << "# Tmax = " << ifs.size() << '\n';
   std::cout << "# t  C(k,t)\n";
   double norm = options.normalize ? 1./ckt[0] : 1.;
   for (int i=nmintime; i<=nmaxtime; ++i)
