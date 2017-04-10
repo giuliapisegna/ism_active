@@ -6,7 +6,7 @@
 
 #include "glsim/blib.hh"
 #include "glsim/offlattice.hh"
-#include "glsim/Gk.hh"
+#include "glsim/Grk.hh"
 
 #include "3dvecs.hh"
 
