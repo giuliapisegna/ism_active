@@ -9,7 +9,7 @@
 EXTRA_DIST = social.hh isi.hh 3dvecs.hh vici.hh ovicsek.hh
 
 bin_PROGRAMS = ism ism_create_conf vicsek ovicsek traj212col examine	\
-               ck ckiso ckt cktiso cko polarization tcorr1
+               ck cknew ckiso ckt cktiso cko polarization tcorr1
 
 ism_SOURCES = ism.cc isi.cc social.cc
 
@@ -27,6 +27,9 @@ tcorr1_SOURCES = tcorr1.cc
 tcorr1_LDADD = -lglsim_an $(AM_LDADD)
 
 ck_SOURCES = ck.cc
+
+cknew_SOURCES = cknew.cc
+cknew_LDADD = -lglsim_an $(AM_LDADD)
 
 ckiso_SOURCES = ckiso.cc
 ckiso_CXXFLAGS=$(OPENMP_CXXFLAGS) $(AM_CXXFLAGS)
