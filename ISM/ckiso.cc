@@ -9,7 +9,8 @@
 #include "glsim/blib.hh"
 #include "glsim/offlattice.hh"
 #include "glsim/timecorr.hh"
-#include "glsim/binvec.hh"
+//#include "glsim/binvec.hh"
+#include "glsim/Grk.hh"
 
 #include "3dvecs.hh"
 
@@ -19,131 +20,131 @@
  * This computes C(r)
  *
  */
-class Cr {
-public:
-  Cr(const glsim::OLconfiguration& c,double rnn);
-  ~Cr();
+// class Cr {
+// public:
+//   Cr(const glsim::OLconfiguration& c,double rnn);
+//   ~Cr();
 
-  /// Number of bins
-  int    size() const {return esize;}
-  /// Number of bins including all particles (up to distances larger that box/2)
-  int    extended_size() const {return vec->nbins();}
-  /// \f$\Delta r\f$
-  double deltar() const {return vec->delta();}
-  /// Radius corresponding to ith bin
-  double r(int i) const {return vec->binc(i);}
-  /// 4\pi\rho r^2 \Delta r C(r) at ith bin, excluding the self (i=j) contribution
-  double corr_nonorm(std::size_t i) const
-  {return (*vec)[i]/nconf;}
+//   /// Number of bins
+//   int    size() const {return esize;}
+//   /// Number of bins including all particles (up to distances larger that box/2)
+//   int    extended_size() const {return vec->nbins();}
+//   /// \f$\Delta r\f$
+//   double deltar() const {return vec->delta();}
+//   /// Radius corresponding to ith bin
+//   double r(int i) const {return vec->binc(i);}
+//   /// 4\pi\rho r^2 \Delta r C(r) at ith bin, excluding the self (i=j) contribution
+//   double corr_nonorm(std::size_t i) const
+//   {return (*vec)[i]/nconf;}
 
-  void push(const glsim::OLconfiguration&);
-  void push(const Cr&);
+//   void push(const glsim::OLconfiguration&);
+//   void push(const Cr&);
 
-private:
-  double Cr0;
-  glsim::Binned_vector<double> *vec;
-  double rnn;
-  int    esize;   // The size as seen from the outside.  Internally we
-		  // keep a few more bins for convenience, but we must
-		  // not report values of r larger than half the box
-		  // side
-  int    nconf;
-  double rho;
+// private:
+//   double Cr0;
+//   glsim::Binned_vector<double> *vec;
+//   double rnn;
+//   int    esize;   // The size as seen from the outside.  Internally we
+// 		  // keep a few more bins for convenience, but we must
+// 		  // not report values of r larger than half the box
+// 		  // side
+//   int    nconf;
+//   double rho;
 
-  friend std::ostream& operator<<(std::ostream& o,const Cr& corr);
-} ;
+//   friend std::ostream& operator<<(std::ostream& o,const Cr& corr);
+// } ;
 
-Cr::Cr(const glsim::OLconfiguration &c,double rnn_) :
-  rnn(rnn_), nconf(0), Cr0(0.)
-{
-  double rmax=sqrt(c.box_length[0]*c.box_length[0] + c.box_length[1]*c.box_length[1] +
-		   c.box_length[2]*c.box_length[2])/1.99;
-  double lmax=std::min(c.box_length[0],c.box_length[1]);
-  lmax=std::min(lmax,c.box_length[2]);
-  int nbins=(int) ceil(rmax/(0.1*rnn));
-  vec=new glsim::Binned_vector<double>(nbins,0,rmax);
-  esize=vec->binn(lmax/2.);
-  for (int i=0; i<nbins; (*vec)[i++]=0.) ;
-  rho=c.number_density();
-}
+// Cr::Cr(const glsim::OLconfiguration &c,double rnn_) :
+//   rnn(rnn_), nconf(0), Cr0(0.)
+// {
+//   double rmax=sqrt(c.box_length[0]*c.box_length[0] + c.box_length[1]*c.box_length[1] +
+// 		   c.box_length[2]*c.box_length[2])/1.99;
+//   double lmax=std::min(c.box_length[0],c.box_length[1]);
+//   lmax=std::min(lmax,c.box_length[2]);
+//   int nbins=(int) ceil(rmax/(0.1*rnn));
+//   vec=new glsim::Binned_vector<double>(nbins,0,rmax);
+//   esize=vec->binn(lmax/2.);
+//   for (int i=0; i<nbins; (*vec)[i++]=0.) ;
+//   rho=c.number_density();
+// }
 
-Cr::~Cr()
-{
-  delete vec;
-}
+// Cr::~Cr()
+// {
+//   delete vec;
+// }
 
-void Cr::push(const glsim::OLconfiguration& conf)
-{
-  for (int i=0; i<conf.N; ++i) {
-    Cr0+=dotp(conf.v[i],conf.v[i])/conf.N;
-  }
-  for (int i=0; i<conf.N-1; ++i) {
-    for (int j=i+1; j<conf.N; ++j) {
-      double r=sqrt(conf.distancesq(i,j));
-      (*vec)[r]+=2*dotp(conf.v[i],conf.v[j])/conf.N;
-    }
-  }
-  nconf++;
-}
+// void Cr::push(const glsim::OLconfiguration& conf)
+// {
+//   for (int i=0; i<conf.N; ++i) {
+//     Cr0+=dotp(conf.v[i],conf.v[i])/conf.N;
+//   }
+//   for (int i=0; i<conf.N-1; ++i) {
+//     for (int j=i+1; j<conf.N; ++j) {
+//       double r=sqrt(conf.distancesq(i,j));
+//       (*vec)[r]+=2*dotp(conf.v[i],conf.v[j])/conf.N;
+//     }
+//   }
+//   nconf++;
+// }
 
-void Cr::push(const Cr& C)
-{
-  Cr0+=C.Cr0;
-  for (int i=0; i<vec->nbins(); ++i)
-    (*vec)[i]+=(*(C.vec))[i];
-  nconf+=C.nconf;
-}
+// void Cr::push(const Cr& C)
+// {
+//   Cr0+=C.Cr0;
+//   for (int i=0; i<vec->nbins(); ++i)
+//     (*vec)[i]+=(*(C.vec))[i];
+//   nconf+=C.nconf;
+// }
  
-std::ostream& operator<<(std::ostream& o,const Cr& corr)
-{
-  double f=1./(4*M_PI*corr.rho*corr.nconf*corr.vec->delta());
-  o << 0. << " " << corr.Cr0/corr.nconf << '\n';
-  for (int i=0; i < corr.size(); ++i) {
-    double r=corr.vec->binc(i);
-    o << r << "  " << f*(*corr.vec)[i]/(r*r) << '\n';
-  }
-}
+// std::ostream& operator<<(std::ostream& o,const Cr& corr)
+// {
+//   double f=1./(4*M_PI*corr.rho*corr.nconf*corr.vec->delta());
+//   o << 0. << " " << corr.Cr0/corr.nconf << '\n';
+//   for (int i=0; i < corr.size(); ++i) {
+//     double r=corr.vec->binc(i);
+//     o << r << "  " << f*(*corr.vec)[i]/(r*r) << '\n';
+//   }
+// }
 
-/*****************************************************************************
- *
- * C(k)
- *
- */
+// /*****************************************************************************
+//  *
+//  * C(k)
+//  *
+//  */
 
-class Ckiso {
-public:
-  Ckiso(const glsim::OLconfiguration&,const Cr&,int);
-  std::vector<double> Ck;
-  double              deltak;
-} ;
+// class Ckiso {
+// public:
+//   Ckiso(const glsim::OLconfiguration&,const Cr&,int);
+//   std::vector<double> Ck;
+//   double              deltak;
+// } ;
 
-Ckiso::Ckiso(const glsim::OLconfiguration &conf,const Cr& C,int nk)
-{
-  deltak=0.2*M_PI/conf.box_length[0];
+// Ckiso::Ckiso(const glsim::OLconfiguration &conf,const Cr& C,int nk)
+// {
+//   deltak=0.2*M_PI/conf.box_length[0];
 
-  Ck.resize(nk);
-  for (int ik=0; ik<nk; ++ik) {
-    double k=ik*deltak/M_PI; // Divide by PI because of GSL's definition 
-                             // of the sinc function
-    // We start with 1 instead of 0 because corr_nonorm, which is used
-    // in the loop below, does note include the self (i=j) contribution
-    // also note that we don't multiply by \Delta r because we use corr_nonorm
-    // which return value is already multiplied by \Delta r
-    Ck[ik]=1;
-    for (int i=0; i<C.extended_size(); ++i) {  // extended_size ensures all pairs are included in sum
-      double kr=k*C.r(i);
-      Ck[ik]+=C.corr_nonorm(i)*gsl_sf_sinc(kr);
-    }
-  }
-}
+//   Ck.resize(nk);
+//   for (int ik=0; ik<nk; ++ik) {
+//     double k=ik*deltak/M_PI; // Divide by PI because of GSL's definition 
+//                              // of the sinc function
+//     // We start with 1 instead of 0 because corr_nonorm, which is used
+//     // in the loop below, does note include the self (i=j) contribution
+//     // also note that we don't multiply by \Delta r because we use corr_nonorm
+//     // which return value is already multiplied by \Delta r
+//     Ck[ik]=1;
+//     for (int i=0; i<C.extended_size(); ++i) {  // extended_size ensures all pairs are included in sum
+//       double kr=k*C.r(i);
+//       Ck[ik]+=C.corr_nonorm(i)*gsl_sf_sinc(kr);
+//     }
+//   }
+// }
 
-std::ostream& operator<<(std::ostream& o,const Ckiso& ck)
-{
-  for (int i=0; i < ck.Ck.size(); ++i) {
-    double k=i*ck.deltak;
-    o << k << "  " << ck.Ck[i] << '\n';
-  }
-}
+// std::ostream& operator<<(std::ostream& o,const Ckiso& ck)
+// {
+//   for (int i=0; i < ck.Ck.size(); ++i) {
+//     double k=i*ck.deltak;
+//     o << k << "  " << ck.Ck[i] << '\n';
+//   }
+// }
 
 
 /******************************************************************************
@@ -154,9 +155,9 @@ std::ostream& operator<<(std::ostream& o,const Ckiso& ck)
 
 struct optlst {
 public:
-  bool multithreaded;
-  int  nk;
-  double rnn;
+  bool   multithreaded;
+  int    nr,nk;
+  // double rnn;
   std::vector<std::string> ifiles;
   std::string c_of_r_file;
 
@@ -172,8 +173,9 @@ public:
 CLoptions::CLoptions() : glsim::UtilityCL("ckiso")
 {
   hidden_command_line_options().add_options()
+    // ("rnn",po::value<double>(&options.rnn)->required(),"mean NN distance")
+    ("nr",po::value<int>(&options.nr)->required(),"number of bins for C(r)")
     ("nk",po::value<int>(&options.nk)->required(),"number of wavevectors to compute")
-    ("rnn",po::value<double>(&options.rnn)->required(),"mean NN distance")
     ("ifiles",po::value<std::vector<std::string> >(&options.ifiles)->required(),"input files")
     ;
   command_line_options().add_options()
@@ -183,19 +185,19 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckiso")
      "also write C(r) to given file")
      ;
 
-  positional_options().add("nk",1).add("rnn",1).add("ifiles",-1);
+  positional_options().add("nk",1).add("nr",1).add("ifiles",-1);
 }
 
 void CLoptions::show_usage() const
 {
   std::cerr
-    << "usage: " << progname << "[options] nk rnn ifile [ifile ....]\n\n"
-    << "nk is the number of k values, rnn is the mean nearest-neighbour distance.\n"
-    << "This computes the isotropic C(k) for nk wavevectors kn (Delta k computed automatically).\n"
-    << "This computes\n\n"
-    << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\sinc( k r_{ij})\n\n"
-    << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
-    << "normalized.\n"
+    << "usage: " << progname << "[options] nr nk ifile [ifile ....]\n\n"
+    // << "nk is the number of k values, rnn is the mean nearest-neighbour distance.\n"
+    // << "This computes the isotropic C(k) for nk wavevectors kn (Delta k computed automatically).\n"
+    // << "This computes\n\n"
+    // << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\sinc( k r_{ij})\n\n"
+    // << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
+    // << "normalized.\n"
     << "\n"
     << " Options:\n";
   show_command_line_options(std::cerr);
@@ -244,6 +246,60 @@ void normalize_vel(glsim::OLconfiguration& conf)
   }
 }
 
+// void wmain(int argc,char *argv[])
+// {
+//   CLoptions o;
+//   o.parse_command_line(argc,argv);
+
+//   glsim::OLconfiguration conf;
+//   glsim::OLconfig_file   cfile(&conf);
+//   glsim::H5_multi_file   ifs(options.ifiles,cfile);
+
+//   ifs.read();
+//   Cr C(conf,options.rnn);
+//   ifs.rewind();
+
+//   if (options.multithreaded) {
+//      #pragma omp parallel
+//      {
+//        glsim::OLconfiguration confloc=conf;
+//        Cr Cloc(confloc,options.rnn);
+
+//        #pragma omp for schedule(static) nowait
+//        for (hsize_t rec=0; rec<ifs.size(); ++rec) {
+// 	 #pragma omp critical
+// 	 {
+// 	   ifs.read();
+// 	   confloc=conf;
+// 	 }
+// 	 normalize_vel(confloc);
+// 	 Cloc.push(confloc);
+//        }
+
+//        #pragma omp critical
+//        C.push(Cloc);
+//      }
+//   } else {
+//     while (ifs.read()) {
+//       normalize_vel(conf);
+//       C.push(conf);
+//     }
+//   }
+
+//   if (options.c_of_r_file.length()>0) {
+//     std::ofstream rfile(options.c_of_r_file);
+//     int ixi=0;
+//     while (C.corr_nonorm(ixi)>0 && ixi <C.size()) ++ixi;
+//     rfile << "# Velocity correlation (real space)\n";
+//     rfile << "#\n# r0 (crossing zero) = " << C.r(ixi) << '\n';
+//     rfile << "#\n# r    C(r)\n";
+//     rfile << C;
+//   }
+//   Ckiso Ck(conf,C,options.nk);
+//   std::cout << "# k   C(k)\n";
+//   std::cout << Ck;
+// }
+
 void wmain(int argc,char *argv[])
 {
   CLoptions o;
@@ -254,48 +310,47 @@ void wmain(int argc,char *argv[])
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
   ifs.read();
-  Cr C(conf,options.rnn);
+  glsim::Grk C(conf.box_length,options.nr,options.nk);
   ifs.rewind();
 
   if (options.multithreaded) {
-     #pragma omp parallel
-     {
-       glsim::OLconfiguration confloc=conf;
-       Cr Cloc(confloc,options.rnn);
+     // #pragma omp parallel
+     // {
+     //   glsim::OLconfiguration confloc=conf;
+     //   Cr Cloc(confloc,options.rnn);
 
-       #pragma omp for schedule(static) nowait
-       for (hsize_t rec=0; rec<ifs.size(); ++rec) {
-	 #pragma omp critical
-	 {
-	   ifs.read();
-	   confloc=conf;
-	 }
-	 normalize_vel(confloc);
-	 Cloc.push(confloc);
-       }
+     //   #pragma omp for schedule(static) nowait
+     //   for (hsize_t rec=0; rec<ifs.size(); ++rec) {
+     // 	 #pragma omp critical
+     // 	 {
+     // 	   ifs.read();
+     // 	   confloc=conf;
+     // 	 }
+     // 	 normalize_vel(confloc);
+     // 	 Cloc.push(confloc);
+     //   }
 
-       #pragma omp critical
-       C.push(Cloc);
-     }
+     //   #pragma omp critical
+     //   C.push(Cloc);
+     // }
   } else {
     while (ifs.read()) {
       normalize_vel(conf);
-      C.push(conf);
+      C.push(conf,conf.v);
     }
   }
 
   if (options.c_of_r_file.length()>0) {
     std::ofstream rfile(options.c_of_r_file);
     int ixi=0;
-    while (C.corr_nonorm(ixi)>0 && ixi <C.size()) ++ixi;
+    while (C.Gr(ixi)>0 && ixi <C.sizer()) ++ixi;
     rfile << "# Velocity correlation (real space)\n";
     rfile << "#\n# r0 (crossing zero) = " << C.r(ixi) << '\n';
     rfile << "#\n# r    C(r)\n";
-    rfile << C;
+    rfile << C.pGr();
   }
-  Ckiso Ck(conf,C,options.nk);
   std::cout << "# k   C(k)\n";
-  std::cout << Ck;
+  std::cout << C.pGk();
 }
 
 int main(int argc, char *argv[])

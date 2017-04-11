@@ -32,6 +32,7 @@ cknew_SOURCES = cknew.cc
 cknew_LDADD = -lglsim_an $(AM_LDADD)
 
 ckiso_SOURCES = ckiso.cc
+ckiso_LDADD = -lglsim_an $(AM_LDADD)
 ckiso_CXXFLAGS=$(OPENMP_CXXFLAGS) $(AM_CXXFLAGS)
 
 ckt_SOURCES = ckt.cc
