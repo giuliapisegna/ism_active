@@ -238,6 +238,7 @@ void compute_phase_ave(glsim::H5_multi_file &ifs,glsim::OLconfiguration& conf)
       aveV[2]+=conf.v[i][2]/conf.N;
     }
   }
+  ifs.rewind();
   aveV[0]/=n;
   aveV[1]/=n;
   aveV[2]/=n;
