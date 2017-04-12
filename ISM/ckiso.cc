@@ -391,10 +391,12 @@ void wmain(int argc,char *argv[])
 
   if (options.c_of_r_file.length()>0) {
     std::ofstream rfile(options.c_of_r_file);
-    int ixi=0;
-    while (C.Gr(ixi)>0 && ixi <C.sizer()) ++ixi;
     rfile << "# Velocity correlation (real space)\n";
-    rfile << "#\n# r0 (crossing zero) = " << C.r(ixi) << '\n';
+    if (!options.phase_average) {
+      int ixi=0;
+      while (C.Gr(ixi)>0 && ixi <C.sizer()) ++ixi;
+      rfile << "# (space average)\n# r0 (crossing zero) = " << C.r(ixi) << '\n';
+    } else rfile << "# (phase average, <v> = " << aveV[0] << ' ' << aveV[1] << ' ' << aveV[2] << '\n';
     rfile << "#\n# r    C(r)\n";
     rfile << C.pGr();
   }
