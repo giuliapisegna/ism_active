@@ -156,6 +156,8 @@
 struct optlst {
 public:
   bool   multithreaded;
+  bool   phase_average;
+  bool   space_ave_fields;
   int    nr,nk;
   // double rnn;
   std::vector<std::string> ifiles;
@@ -163,6 +165,7 @@ public:
 
 } options;
 
+double aveV[3];
 
 class CLoptions : public glsim::UtilityCL {
 public:
@@ -183,21 +186,35 @@ CLoptions::CLoptions() : glsim::UtilityCL("ckiso")
      "process several configurations in parallel")
     ("c-of-r,r",po::value<std::string>(&options.c_of_r_file),
      "also write C(r) to given file")
+    ("phase-average,P",po::bool_switch(&options.phase_average),
+     "connect using phase average (default is space, or single-configuration, average)")
+    ("space-average-fields,S",po::bool_switch(&options.space_ave_fields),
+     "use the definition for space-averaged fields")
      ;
 
-  positional_options().add("nk",1).add("nr",1).add("ifiles",-1);
+  positional_options().add("nr",1).add("nk",1).add("ifiles",-1);
 }
 
 void CLoptions::show_usage() const
 {
   std::cerr
     << "usage: " << progname << "[options] nr nk ifile [ifile ....]\n\n"
+    << "This program computes the (connected) velocity correlation in real\n"
+    << "and Fourier space (the Fourier space correlation is analytically\n"
+    << "averaged over directions of the wavevector).\n"
+    << "nr is the number of space bins, nk is the number of k values.\n"
     // << "nk is the number of k values, rnn is the mean nearest-neighbour distance.\n"
     // << "This computes the isotropic C(k) for nk wavevectors kn (Delta k computed automatically).\n"
-    // << "This computes\n\n"
-    // << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\sinc( k r_{ij})\n\n"
-    // << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
-    // << "normalized.\n"
+    << "The definitions are\n\n"
+    << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\sinc( k r_{ij})\n\n"
+    << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
+    << "normalized,\n"
+    << "         \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\delta(r-r_{ij})\n"
+    << "  C(r) = ---------------------------------------------------------------\n"
+    << "                     \\sum_ij \\delta(r-r_{ij}).\n\n"
+    << "The alternative definitions for the real space correlation (option -S below)\n"
+    << "uses the space-average fields, so that\n"
+    << "  CS(r) = (1/Nrho) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i \\delta(r-r_{ij)).\n\n"
     << "\n"
     << " Options:\n";
   show_command_line_options(std::cerr);
@@ -206,9 +223,26 @@ void CLoptions::show_usage() const
 
 /*****************************************************************************
  *
- * main and normalize_vel
+ * main and prepare velocities
  *
  */
+void compute_phase_ave(glsim::H5_multi_file &ifs,glsim::OLconfiguration& conf)
+{
+  aveV[0]=aveV[1]=aveV[2]=0.;
+  long n=0;
+  while (ifs.read()) {
+    for (int i=0; i<conf.N; ++i) {
+      ++n;
+      aveV[0]+=conf.v[i][0]/conf.N;
+      aveV[1]+=conf.v[i][1]/conf.N;
+      aveV[2]+=conf.v[i][2]/conf.N;
+    }
+  }
+  aveV[0]/=n;
+  aveV[1]/=n;
+  aveV[2]/=n;
+}
+
 void normalize_vel(glsim::OLconfiguration& conf)
 {
   /* Compute polarization */
@@ -244,6 +278,18 @@ void normalize_vel(glsim::OLconfiguration& conf)
     conf.v[i][1]/=fn;
     conf.v[i][2]/=fn;
   }
+}
+
+void prepare_vel(glsim::OLconfiguration& conf)
+{
+  if (options.phase_average) { // substract phase-space average of V
+    for (int i=0; i<conf.N; ++i) {
+      conf.v[i][0]-=aveV[0];
+      conf.v[i][1]-=aveV[1];
+      conf.v[i][2]-=aveV[2];
+    }
+  }
+  else normalize_vel(conf);
 }
 
 // void wmain(int argc,char *argv[])
@@ -310,8 +356,10 @@ void wmain(int argc,char *argv[])
   glsim::H5_multi_file   ifs(options.ifiles,cfile);
 
   ifs.read();
-  glsim::Grk C(conf.box_length,options.nr,options.nk);
+  glsim::Grk C(conf.box_length,options.nr,options.nk,options.space_ave_fields);
   ifs.rewind();
+
+  if (options.phase_average) compute_phase_ave(ifs,conf);
 
   if (options.multithreaded) {
      // #pragma omp parallel
@@ -335,7 +383,7 @@ void wmain(int argc,char *argv[])
      // }
   } else {
     while (ifs.read()) {
-      normalize_vel(conf);
+      prepare_vel(conf);
       C.push(conf,conf.v);
     }
   }
