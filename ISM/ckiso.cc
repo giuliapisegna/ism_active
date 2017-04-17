@@ -231,11 +231,12 @@ void compute_phase_ave(glsim::H5_multi_file &ifs,glsim::OLconfiguration& conf)
   aveV[0]=aveV[1]=aveV[2]=0.;
   long n=0;
   while (ifs.read()) {
+    ++n;
     for (int i=0; i<conf.N; ++i) {
-      ++n;
-      aveV[0]+=conf.v[i][0]/conf.N;
-      aveV[1]+=conf.v[i][1]/conf.N;
-      aveV[2]+=conf.v[i][2]/conf.N;
+      double v0=sqrt(modsq(conf.v[i]));
+      aveV[0]+=conf.v[i][0]/(v0*conf.N);
+      aveV[1]+=conf.v[i][1]/(v0*conf.N);
+      aveV[2]+=conf.v[i][2]/(v0*conf.N);
     }
   }
   ifs.rewind();
@@ -244,29 +245,27 @@ void compute_phase_ave(glsim::H5_multi_file &ifs,glsim::OLconfiguration& conf)
   aveV[2]/=n;
 }
 
-void normalize_vel(glsim::OLconfiguration& conf)
+void compute_space_ave(glsim::OLconfiguration& conf)
 {
-  /* Compute polarization */
-  double V[3];
-  memset(V,0,3*sizeof(double));
+  aveV[0]=aveV[1]=aveV[2]=0.;
   for (int i=0; i<conf.N; ++i) {
     double v0=sqrt(modsq(conf.v[i]));
-    conf.v[i][0]/=v0;
-    conf.v[i][1]/=v0;
-    conf.v[i][2]/=v0;
-    V[0]+=conf.v[i][0];
-    V[1]+=conf.v[i][1];
-    V[2]+=conf.v[i][2];
+    aveV[0]+=conf.v[i][0]/(v0*conf.N);
+    aveV[1]+=conf.v[i][1]/(v0*conf.N);
+    aveV[2]+=conf.v[i][2]/(v0*conf.N);
   }
-  V[0]/=conf.N;
-  V[1]/=conf.N;
-  V[2]/=conf.N;
+}
+
+void normalize_vel(glsim::OLconfiguration& conf)
+{
+  if (!options.phase_average)
+    compute_space_ave(conf);
 
   /* Substract polarization */
   for (int i=0; i<conf.N; ++i) {
-    conf.v[i][0]-=V[0];
-    conf.v[i][1]-=V[1];
-    conf.v[i][2]-=V[2];
+    conf.v[i][0]-=aveV[0];
+    conf.v[i][1]-=aveV[1];
+    conf.v[i][2]-=aveV[2];
   }
 
   /* Normalize */
@@ -279,18 +278,6 @@ void normalize_vel(glsim::OLconfiguration& conf)
     conf.v[i][1]/=fn;
     conf.v[i][2]/=fn;
   }
-}
-
-void prepare_vel(glsim::OLconfiguration& conf)
-{
-  if (options.phase_average) { // substract phase-space average of V
-    for (int i=0; i<conf.N; ++i) {
-      conf.v[i][0]-=aveV[0];
-      conf.v[i][1]-=aveV[1];
-      conf.v[i][2]-=aveV[2];
-    }
-  }
-  else normalize_vel(conf);
 }
 
 // void wmain(int argc,char *argv[])
@@ -384,7 +371,7 @@ void wmain(int argc,char *argv[])
      // }
   } else {
     while (ifs.read()) {
-      prepare_vel(conf);
+      normalize_vel(conf);
       C.push(conf,conf.v);
     }
   }
@@ -396,7 +383,8 @@ void wmain(int argc,char *argv[])
       int ixi=0;
       while (C.Gr(ixi)>0 && ixi <C.sizer()) ++ixi;
       rfile << "# (space average)\n# r0 (crossing zero) = " << C.r(ixi) << '\n';
-    } else rfile << "# (phase average, <v> = " << aveV[0] << ' ' << aveV[1] << ' ' << aveV[2] << '\n';
+    } else rfile << "# (phase average, <v> = " << aveV[0] << ' '
+		 << aveV[1] << ' ' << aveV[2] << '\n';
     rfile << "#\n# r    C(r)\n";
     rfile << C.pGr();
   }

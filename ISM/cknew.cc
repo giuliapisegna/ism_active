@@ -46,7 +46,7 @@ void CLoptions::show_usage() const
     << "Directions must be specified with option -d.\n"
     << "This computes\n\n"
     << "              C(k) = (1/N) \\sum_{ij} v_i v_i exp(i k r_{ij}) / v0^2\n\n"
-    << "or, if -C (connect) is given, the connected C(k), Roman style:\n\n"
+    << "or, if -C (connect) is given, the connected C(k):\n\n"
     << "      C(k) = (1/N) \\sum_{ij} \\delta \\hat v_i \\delta \\hat v_i exp(i k r_{ij})\n\n"
     << "where \\delta v_i = v_i/v_0 - (1/N) \\sum_i v_i/v_0 and \\delta\\hat v_i is\n"
     << "normalized.\n"
