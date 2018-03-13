@@ -23,6 +23,33 @@ struct scomp {
   ~scomp() {}
 } ;
 
+void confined_positions(glsim::OLconfiguration &conf,scomp &SC,double dconf)
+{
+  conf.N=SC.N;
+  conf.step=0;
+  conf.time=0;
+  conf.box_angles[0]=conf.box_angles[1]=conf.box_angles[2]=90.;
+  memcpy(conf.box_length,SC.boxl,3*sizeof(double));
+
+  int i;
+  conf.id=new short[conf.N];
+  for (i=0; i<conf.N; conf.id[i]=i++) ;
+  conf.type=new short[conf.N];
+  for (int j=0; j<SC.N; ++j)
+    conf.type[j]=0;
+  conf.r=new double[conf.N][3];
+  glsim::Uniform_real ranx(0,dconf);
+  glsim::Uniform_real rany(0,dconf);
+  glsim::Uniform_real ranz(0,dconf);
+  for (i=0; i<conf.N; ++i) {
+    conf.r[i][0]=ranx();
+    conf.r[i][1]=rany();
+    conf.r[i][2]=0;
+  }
+  if (!SC.planar)
+    for (i=0; i<conf.N; ++i) conf.r[i][2]=ranz();
+}
+
 void random_positions(glsim::OLconfiguration &conf,scomp &SC)
 {
   conf.N=SC.N;
@@ -171,6 +198,7 @@ static struct options_ {
   int                 N;
   double              density;
   bool                fcc_lattice;
+  double              confine;
   double              v0;
   std::vector<double> spin;
   bool                planar;
@@ -200,6 +228,8 @@ CLoptions::CLoptions() : UtilityCL("ism_greate_conf")
     ("seed,S",po::value<unsigned long>(&options.seed)->default_value(0),"random number seed")
     ("FCC,F",po::bool_switch(&options.fcc_lattice)->default_value(false),
      "use FCC lattice for positions (default random positions)")
+    ("confined",po::value<double>(&options.confine)->default_value(-1),
+     "confine particles in a cube of size arg with vertex at the origin (arg can be 0)")
     ("vmodulus,v",po::value<double>(&options.v0)->default_value(1.),
      "speed (equal for all particles)")
     ("spin,s",po::value<std::vector<double>>(&options.spin),"spin/chi (equal for all particles). Repeat 3 times for components, or give once for moduluse (random orientation")
@@ -261,6 +291,8 @@ void wmain(int argc,char *argv[])
 
   if (options.fcc_lattice)
     fcc_positions(conf,SC);
+  else if (options.confine>=0)
+    confined_positions(conf,SC,options.confine);
   else
     random_positions(conf,SC);
   conf.name="Created by ism_create_conf";
