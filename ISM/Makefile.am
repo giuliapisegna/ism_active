@@ -8,10 +8,12 @@
 
 EXTRA_DIST = social.hh isi.hh 3dvecs.hh vici.hh ovicsek.hh
 
-bin_PROGRAMS = ism ism_create_conf vicsek ovicsek traj212col examine	\
+bin_PROGRAMS = ism ism-pl ism_create_conf vicsek ovicsek traj212col examine	\
                ck cknew ckiso ckt cktiso cko polarization tcorr1
 
 ism_SOURCES = ism.cc isi.cc social.cc
+
+ism_pl_SOURCES = ism-pl.cc isi.cc social.cc
 
 ism_create_conf_SOURCES = ism_create_conf.cc
 

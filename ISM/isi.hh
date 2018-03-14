@@ -130,7 +130,7 @@ public:
   void write_header();
   void observe();
 
-private:
+protected:
   ISMEnvironment  &env;
   glsim::OLconfiguration &conf;
   ISMObservable_parameters par;

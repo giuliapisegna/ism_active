@@ -9,6 +9,7 @@ compile
 depcomp
 install-sh
 missing
+INSTALL
 GPATH
 GRTAGS
 GTAGS

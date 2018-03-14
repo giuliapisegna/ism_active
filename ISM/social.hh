@@ -54,6 +54,7 @@ public:
   double social_mass(short type) const {return chi/v0sq;}
   double speed(short type=0) const {return v0;}
   double coupling() const {return J;}
+  double cutoff() const {return rc;}
 
 protected:
   bool              metric;
