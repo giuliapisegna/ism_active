@@ -125,6 +125,53 @@ void fcc_positions(glsim::OLconfiguration &conf,scomp &SC)
   std::cout << "First neighbour distance: " << sqrt(2.)*d << '\n';
 }
 
+void sc_positions(glsim::OLconfiguration &conf,scomp &SC)
+{
+  int   ix,iy,iz,i;
+  int   nx,ny,nz;
+  double d,x,y,z,vol;
+
+  conf.N=SC.N;
+  conf.step=0;
+  conf.time=0;
+  conf.box_angles[0]=conf.box_angles[1]=conf.box_angles[2]=90.;
+  memcpy(conf.box_length,SC.boxl,3*sizeof(double));
+  conf.id=new short[conf.N];
+  for (i=0; i<conf.N; conf.id[i]=i++) ;
+  conf.type=new short[conf.N];
+  for (int j=0; j<SC.N; ++j)
+    conf.type[j]=0;
+  conf.r=new double[conf.N][3];
+
+  vol=conf.box_length[0]*conf.box_length[1]*conf.box_length[2];
+  d=powf(conf.N/vol,-1./3.);
+  nx=ceil(conf.box_length[0]/d-1e-6);
+  ny=ceil(conf.box_length[1]/d-1e-6);
+  nz=ceil(conf.box_length[2]/d-1e-6);
+
+  i=0;
+  for (ix=0; ix<nx; ix++) {
+    x=ix*d;
+    for (iy=0; iy<ny; iy++) {
+      y=iy*d;
+      for (iz=0; iz<nz; iz++) {
+	if (i>=conf.N) goto exhausted;
+	z=iz*d;
+	conf.r[i][0]=x;
+	conf.r[i][1]=y;
+	conf.r[i][2]=z;
+	i++;
+      }
+    }
+  }
+  goto go;
+ exhausted:
+  std::cout << "WARNING: box was not uniformly filled (use N=m^3)\n";
+
+ go:
+  std::cout << "First neighbour distance: " << sqrt(2.)*d << '\n';
+}
+
 void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin,bool polarize)
 {
   delete[] conf.v;
@@ -198,6 +245,7 @@ static struct options_ {
   int                 N;
   double              density;
   bool                fcc_lattice;
+  bool                sc_lattice;
   double              confine;
   double              v0;
   std::vector<double> spin;
@@ -226,8 +274,10 @@ CLoptions::CLoptions() : UtilityCL("ism_greate_conf")
   command_line_options().add_options()
     ("density,d",po::value<double>(&options.density)->default_value(1.),"average density")
     ("seed,S",po::value<unsigned long>(&options.seed)->default_value(0),"random number seed")
-    ("FCC,F",po::bool_switch(&options.fcc_lattice)->default_value(false),
+    ("FCC,F",po::bool_switch(&options.fcc_lattice),
      "use FCC lattice for positions (default random positions)")
+    ("SC,C",po::bool_switch(&options.sc_lattice),
+     "use SC (simple cubic lattice) for positions")
     ("confined",po::value<double>(&options.confine)->default_value(-1),
      "confine particles in a cube of size arg with vertex at the origin (arg can be 0)")
     ("vmodulus,v",po::value<double>(&options.v0)->default_value(1.),
@@ -291,6 +341,8 @@ void wmain(int argc,char *argv[])
 
   if (options.fcc_lattice)
     fcc_positions(conf,SC);
+  else if (options.sc_lattice)
+    sc_positions(conf,SC);
   else if (options.confine>=0)
     confined_positions(conf,SC,options.confine);
   else
