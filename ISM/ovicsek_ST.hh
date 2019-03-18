@@ -35,7 +35,7 @@ public:
   int     tune_step;
   long    last_tuning;
   double  tune_factor;  // kappa in Dante's manuscript
-  double  polarizationAve,polarizationVar;
+  double  polarizationSQAve,polarizationVar;
   double  polarization_prev;
   double  AC1;                           // Self-correlation at time 1 (running)
   double  AC1_prev;
@@ -83,7 +83,7 @@ protected:
   glsim::OLconfiguration& conf;
 
 private:
-  glsim::AveVar<false> polAV,AC1AV;
+  glsim::AveVar<false> polAV,polSQAV,AC1AV;
 
   void vnoise(double*);
   void update_velocities();
