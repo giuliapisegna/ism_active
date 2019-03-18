@@ -11,7 +11,7 @@
 # Initialization
 #
 AC_PREREQ([2.67])
-AC_INIT([active],[0.0.1],[tgrigera@iflysib.unlp.edu.ar])
+AC_INIT([active],[0.1.0],[tgrigera@iflysib.unlp.edu.ar])
 AC_CONFIG_SRCDIR([ISM/social.hh])  # Check just one file as safety check
 AC_CONFIG_MACRO_DIR([m4])
 AC_LANG(C++)
@@ -115,7 +115,7 @@ AS_IF([test x"$with_fftw3" = xyes],
 )
 
 #
-# glsim, glsim_ol, glsim_an
+# glsim, glsim_ol
 #
 AC_MSG_CHECKING([for working -lglsim])
 SAVED_LIBS=$LIBS

@@ -169,7 +169,7 @@ void sc_positions(glsim::OLconfiguration &conf,scomp &SC)
   std::cout << "WARNING: box was not uniformly filled (use N=m^3)\n";
 
  go:
-  std::cout << "First neighbour distance: " << sqrt(2.)*d << '\n';
+  std::cout << "First neighbour distance: " << d << '\n';
 }
 
 void random_velocities(glsim::OLconfiguration &conf,double v0,std::vector<double> spin,bool polarize)
