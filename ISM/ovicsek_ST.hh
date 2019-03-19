@@ -34,6 +34,7 @@ public:
 
   int     tune_step;
   long    last_tuning;
+  double  tuned_eta;    // because OVicsek_Environment::eta is always re-read from .ini
   double  tune_factor;  // kappa in Dante's manuscript
   double  polarizationSQAve,polarizationVar;
   double  polarization_prev;
@@ -41,8 +42,8 @@ public:
   double  AC1_prev;
 
 protected:
-  void    init_local() {OVicsekEnvironment::init_local(); common_init();}
-  void    warm_init_local() {OVicsekEnvironment::warm_init_local(); common_init();}
+  void    init_local() {OVicsekEnvironment::init_local(); tuned_eta=eta; common_init();}
+  void    warm_init_local() {OVicsekEnvironment::warm_init_local(); eta=tuned_eta; common_init();}
 
 private:
   OVicsek_STParameters par;
