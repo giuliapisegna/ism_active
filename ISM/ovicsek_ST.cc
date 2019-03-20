@@ -18,6 +18,7 @@ OVicsek_STParameters::OVicsek_STParameters(const char *scope) :
   Parameters(scope)
 {
   parameter_file_options().add_options()
+    ("OVicsek_ST.tune",po::value<bool>()->required(),"Whether to do the tuning")
     ("OVicsek_ST.tune_step",po::value<int>()->required(),"Steps between tuning")
     ("OVicsek_ST.tune_factor",po::value<double>()->required(),"Tuning factor")
     ;
@@ -25,6 +26,7 @@ OVicsek_STParameters::OVicsek_STParameters(const char *scope) :
 
 OVicsek_STEnvironment::OVicsek_STEnvironment(const char* scope) :
   OVicsekEnvironment(scope),
+  tune(false),
   tune_step(100),
   last_tuning(0),
   tune_factor(0.1),
@@ -38,6 +40,7 @@ OVicsek_STEnvironment::OVicsek_STEnvironment(const char* scope) :
 
 void OVicsek_STEnvironment::common_init()
 {
+  tune=par.value("OVicsek_ST.tune").as<bool>();
   tune_step=par.value("OVicsek_ST.tune_step").as<int>();
   tune_factor=par.value("OVicsek_ST.tune_factor").as<double>();
 }
@@ -48,7 +51,8 @@ inline void OVicsek_STEnvironment::serialize(Archive &ar,const unsigned int vers
   if (version!=class_version)
     throw glsim::Environment_wrong_version("Vicsek_STEnvironment",version,class_version);
   ar & boost::serialization::base_object<OVicsekEnvironment>(*this);
-  ar & tune_step & last_tuning & tuned_eta & tune_factor & polarizationSQAve & polarizationVar & polarization_prev & AC1 & AC1_prev;
+  ar & tune & tune_step & last_tuning & tuned_eta & tune_factor
+     & polarizationSQAve & polarizationVar & polarization_prev & AC1 & AC1_prev;
 }
 
 /*****************************************************************************
@@ -169,7 +173,7 @@ void OVicsek_STSimulation::step()
   conf.fold_coordinates();
   NN->rebuild(conf,env.cutoff);
   update_observables();
-  if (env.steps_completed % env.tune_step == 0) tune_eta();
+  if (env.tune && env.steps_completed % env.tune_step == 0) tune_eta();
   env.time_completed+=1;
   env.time_in_run+=1;
   env.run_completed = env.steps_in_run>=env.VSsteps;

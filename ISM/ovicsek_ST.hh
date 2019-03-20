@@ -32,6 +32,7 @@ class OVicsek_STEnvironment : public OVicsekEnvironment {
 public:
   OVicsek_STEnvironment(const char* scope=glsim::Parameters::default_scope);
 
+  bool    tune;
   int     tune_step;
   long    last_tuning;
   double  tuned_eta;    // because OVicsek_Environment::eta is always re-read from .ini
