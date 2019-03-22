@@ -28,6 +28,7 @@ OVicsek_STEnvironment::OVicsek_STEnvironment(const char* scope) :
   OVicsekEnvironment(scope),
   tune(false),
   tune_step(100),
+  dsign(1),
   last_tuning(0),
   tune_factor(0.1),
   polarizationAveSQ(0.),
@@ -51,7 +52,7 @@ inline void OVicsek_STEnvironment::serialize(Archive &ar,const unsigned int vers
   if (version!=class_version)
     throw glsim::Environment_wrong_version("Vicsek_STEnvironment",version,class_version);
   ar & boost::serialization::base_object<OVicsekEnvironment>(*this);
-  ar & tune & tune_step & last_tuning & tuned_eta & tune_factor
+  ar & tune & tune_step & dsign & last_tuning & tuned_eta & tune_factor
      & polarizationAveSQ & polarizationVar & polarization_prev & AC1 & AC1_prev;
 }
 
@@ -98,7 +99,7 @@ OVicsek_STSimulation::OVicsek_STSimulation(OVicsek_STEnvironment& e,
     }
   }
 
-  ranz=new glsim::Uniform_real(1-2*env.eta,1);
+  ranu=new glsim::Uniform_real(0.,1.);
   ranphi=new glsim::Uniform_real(0,2*M_PI);
   
   conf.step=env.steps_completed;
@@ -108,7 +109,7 @@ OVicsek_STSimulation::OVicsek_STSimulation(OVicsek_STEnvironment& e,
 
 OVicsek_STSimulation::~OVicsek_STSimulation()
 {
-  delete ranz,ranphi;
+  delete ranu,ranphi;
   delete[] confb;
 }
 
@@ -119,7 +120,7 @@ template <typename T> T ssg(T val) {
 
 void OVicsek_STSimulation::vnoise(double v[])
 {
-  double u1[3],u2[3];
+  double u1[3],u2[3],a,range;
 
   u1[0]=-ssg(v[0])*v[2];
   u1[1]=-ssg(v[1])*v[2];
@@ -127,7 +128,9 @@ void OVicsek_STSimulation::vnoise(double v[])
   normalize(v);
   normalize(u1);
   vprod(u2,v,u1);
-  double z=(*ranz)();
+  a=1-2*env.eta;
+  range=1-a;
+  double z=a+range*(*ranu)();
   double phi=(*ranphi)();
   v[0]=env.v0*(sqrt(1-z*z)*cos(phi)*u1[0] + sqrt(1-z*z)*sin(phi)*u2[0] + z*v[0]);
   v[1]=env.v0*(sqrt(1-z*z)*cos(phi)*u1[1] + sqrt(1-z*z)*sin(phi)*u2[1] + z*v[1]);
@@ -185,11 +188,13 @@ void OVicsek_STSimulation::tune_eta()
 {
   env.last_tuning=env.steps_completed;
   if (env.tune && env.AC1_prev!=0) {
-    double s=env.AC1-env.AC1_prev;
-    s=fabs(s)/s;
+    double s=ssg(env.AC1-env.AC1_prev);
+    env.dsign*=s;
     double delta=1-env.AC1;
     delta*=delta;
-    env.eta+=delta*s*env.tune_factor;
+    env.eta+=delta*env.dsign*env.tune_factor;
+    if (env.eta<0) env.eta=1e-4;
+    if (env.eta>1) env.eta=1;
     env.tuned_eta=env.eta;
   }
   env.AC1_prev=env.AC1;
@@ -246,7 +251,6 @@ void OVicsek_STSimulation::log_start_sim()
 
 void OVicsek_STSimulation::log()
 {
-  update_observables();
   static char buff[301];
   snprintf(buff,300,"%8ld %10.3e %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,

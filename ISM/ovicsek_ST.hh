@@ -34,6 +34,7 @@ public:
 
   bool    tune;
   int     tune_step;
+  short   dsign;
   long    last_tuning;
   double  tuned_eta;    // because OVicsek_Environment::eta is always re-read from .ini
   double  tune_factor;  // kappa in Dante's manuscript
@@ -95,7 +96,7 @@ private:
   double  (*confb)[3];
   double  rcsq,v0sq;
 
-  glsim::Uniform_real *ranz,*ranphi;
+  glsim::Uniform_real *ranu,*ranphi;
 } ;
 
 /******************************************************************************
