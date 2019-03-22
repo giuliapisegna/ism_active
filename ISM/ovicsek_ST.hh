@@ -37,7 +37,7 @@ public:
   long    last_tuning;
   double  tuned_eta;    // because OVicsek_Environment::eta is always re-read from .ini
   double  tune_factor;  // kappa in Dante's manuscript
-  double  polarizationSQAve,polarizationVar;
+  double  polarizationAveSQ,polarizationVar;
   double  polarization_prev;
   double  AC1;                           // Self-correlation at time 1 (running)
   double  AC1_prev;
