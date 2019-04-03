@@ -175,6 +175,7 @@ std::ostream& operator<<(std::ostream& o,const Ckt& Ckt_)
       << Ckt_.Cktz[i].real() << ' ' << Ckt_.Cktz[i].imag() << "   "
       << '\n';
   }
+  return o;
 }
 
 /******************************************************************************

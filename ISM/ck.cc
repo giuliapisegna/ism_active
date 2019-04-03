@@ -121,6 +121,7 @@ std::ostream& operator<<(std::ostream& o,const Ck& Ck_)
   o << "# k   Ck'   Ck''\n";
   for (int i=0; i<Ck_.Ck_.size(); i++)
     o << i*dk << "  " << Ck_.Ck_[i].real() << "  " << Ck_.Ck_[i].imag() << '\n';
+  return o;
 }
 
 class CLoptions : public glsim::UtilityCL {

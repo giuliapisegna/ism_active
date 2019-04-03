@@ -54,11 +54,16 @@ void OVicsek_STEnvironment::common_init()
 template <typename Archive>
 inline void OVicsek_STEnvironment::serialize(Archive &ar,const unsigned int version)
 {
-  if (version!=class_version)
+  if (version!=class_version && version!=1)
     throw glsim::Environment_wrong_version("Vicsek_STEnvironment",version,class_version);
   ar & boost::serialization::base_object<OVicsekEnvironment>(*this);
-  ar & tune & can_tune & tune_time & tune_step & dsign & last_tuning & tuned_eta & tune_factor
-     & polarizationAveSQ & polarizationVar & polarization_prev & polprev & AC1 & AC1_prev;
+  if (version==1)  {
+    ar & tune & tune_step & dsign & last_tuning & tuned_eta & tune_factor
+      & polarizationAveSQ & polarizationVar & polprev & AC1 & AC1_prev;
+  } else {
+    ar & tune & can_tune & tune_time & tune_step & dsign & last_tuning & tuned_eta & tune_factor
+      & polarizationAveSQ & polarizationVar & polarization_prev & polprev & AC1 & AC1_prev;
+  }
 }
 
 /*****************************************************************************
