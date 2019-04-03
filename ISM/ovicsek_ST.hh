@@ -7,6 +7,10 @@
 #ifndef OVICSEK_ST_HH
 #define OVICSEK_ST_HH
 
+#include <queue>
+#include <boost/serialization/deque.hpp>
+#include <boost/serialization/queue.hpp>
+
 #include "glsim/random.hh"
 #include "glsim/stochastic.hh"
 #include "glsim/simulation.hh"
@@ -33,13 +37,16 @@ public:
   OVicsek_STEnvironment(const char* scope=glsim::Parameters::default_scope);
 
   bool    tune;
+  bool    can_tune;
+  int     tune_time;
   int     tune_step;
   short   dsign;
   long    last_tuning;
   double  tuned_eta;    // because OVicsek_Environment::eta is always re-read from .ini
   double  tune_factor;  // kappa in Dante's manuscript
   double  polarizationAveSQ,polarizationVar;
-  double  polarization_prev;
+  std::queue<double>  polarization_prev;
+  double  polprev;
   double  AC1;                           // Self-correlation at time 1 (running)
   double  AC1_prev;
 
@@ -58,10 +65,10 @@ private:
   friend class boost::serialization::access;
 
 public:
-  static const unsigned int class_version=1;
+  static const unsigned int class_version=2;
 } ;
 
-BOOST_CLASS_VERSION(OVicsek_STEnvironment,OVicsekEnvironment::class_version);
+BOOST_CLASS_VERSION(OVicsek_STEnvironment,OVicsek_STEnvironment::class_version);
 
 
 /*****************************************************************************

@@ -19,7 +19,8 @@ OVicsek_STParameters::OVicsek_STParameters(const char *scope) :
 {
   parameter_file_options().add_options()
     ("OVicsek_ST.tune",po::value<bool>()->required(),"Whether to do the tuning")
-    ("OVicsek_ST.tune_step",po::value<int>()->required(),"Steps between tuning")
+    ("OVicsek_ST.tune_time",po::value<int>()->required(),"Time to use for tuning with autocorrelation, i.e. use AC(arg)")
+    ("OVicsek_ST.tune_step",po::value<int>()->required(),"Steps between tuning (means arg values of AC will be averaged before tuning")
     ("OVicsek_ST.tune_factor",po::value<double>()->required(),"Tuning factor")
     ;
 }
@@ -27,13 +28,16 @@ OVicsek_STParameters::OVicsek_STParameters(const char *scope) :
 OVicsek_STEnvironment::OVicsek_STEnvironment(const char* scope) :
   OVicsekEnvironment(scope),
   tune(false),
+  can_tune(false),
+  tune_time(1),
   tune_step(100),
   dsign(1),
   last_tuning(0),
   tune_factor(0.1),
   polarizationAveSQ(0.),
   polarizationVar(0.),
-  polarization_prev(0.),
+  polarization_prev(),
+  polprev(0.),
   AC1(0.),
   AC1_prev(0.),
   par(scope)
@@ -42,6 +46,7 @@ OVicsek_STEnvironment::OVicsek_STEnvironment(const char* scope) :
 void OVicsek_STEnvironment::common_init()
 {
   tune=par.value("OVicsek_ST.tune").as<bool>();
+  tune_time=par.value("OVicsek_ST.tune_time").as<int>();
   tune_step=par.value("OVicsek_ST.tune_step").as<int>();
   tune_factor=par.value("OVicsek_ST.tune_factor").as<double>();
 }
@@ -52,8 +57,8 @@ inline void OVicsek_STEnvironment::serialize(Archive &ar,const unsigned int vers
   if (version!=class_version)
     throw glsim::Environment_wrong_version("Vicsek_STEnvironment",version,class_version);
   ar & boost::serialization::base_object<OVicsekEnvironment>(*this);
-  ar & tune & tune_step & dsign & last_tuning & tuned_eta & tune_factor
-     & polarizationAveSQ & polarizationVar & polarization_prev & AC1 & AC1_prev;
+  ar & tune & can_tune & tune_time & tune_step & dsign & last_tuning & tuned_eta & tune_factor
+     & polarizationAveSQ & polarizationVar & polarization_prev & polprev & AC1 & AC1_prev;
 }
 
 /*****************************************************************************
@@ -215,7 +220,7 @@ void OVicsek_STSimulation::update_observables()
   env.v0sqave=0;
   memset(V,0,3*sizeof(double));
 
-  env.polarization_prev=env.polarization;
+  env.polarization_prev.push(env.polarization);
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
     env.v0sqave+=vs;
@@ -232,7 +237,11 @@ void OVicsek_STSimulation::update_observables()
   polAV.push(env.polarization);
   env.polarizationAveSQ=polAV.ave()*polAV.ave();
   env.polarizationVar=polAV.var();
-  AC1AV.push(env.polarization*env.polarization_prev);
+  if (env.polarization_prev.size()<env.tune_time) return;
+  env.can_tune=true;
+  env.polprev=env.polarization_prev.front();
+  env.polarization_prev.pop();
+  AC1AV.push(env.polarization*env.polprev);
   env.AC1=(AC1AV.ave()-env.polarizationAveSQ)/env.polarizationVar;
 }
 
@@ -282,9 +291,10 @@ void OVicsek_STObservable::interval_and_file()
 
 void OVicsek_STObservable::write_header()
 {
+  fprintf(of,"#   Tuning every %d steps using AC(n) with n=%d\n",env.tune_step,env.tune_time);
   fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)|       (8)|       (9)|      (10)|     (11)|      (12)|      (13)|\n");
   fprintf(of,"#- Step and time -| | Av v^2 | |--- Center of mass velocity --| |---------------- Polarizazion  ------------------- |          | Elapsed  |\n");
-  fprintf(of,"#   Step       Time  <|v_i|^2>       VCMx       VCMy       VXMz        Phi PreviousPh    PhiAv^2     PhiVar       AC1        eta since tune\n");
+  fprintf(of,"#   Step       Time  <|v_i|^2>       VCMx       VCMy       VXMz        Phi PreviousPh    PhiAv^2     PhiVar     AC(n)        eta since tune\n");
 }
 
 void OVicsek_STObservable::observe()
@@ -294,7 +304,7 @@ void OVicsek_STObservable::observe()
   fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10d\n",
 	  env.steps_completed,env.time_completed,
 	  env.v0sqave,env.Vcm[0],env.Vcm[1],env.Vcm[2],
-	  env.polarization,env.polarization_prev,env.polarizationAveSQ,env.polarizationVar,env.AC1,env.eta,
+	  env.polarization,env.polprev,env.polarizationAveSQ,env.polarizationVar,env.AC1,env.eta,
 	  env.steps_completed-env.last_tuning);
 }
 
