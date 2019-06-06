@@ -197,8 +197,8 @@ void ISMSimulation::step()
 
     // 2. Delta v w/o rattle corrections
     deltav[0] = c1dt*conf.a[i][0] + c2dt*Dt*confb[i][0] + xiv[0];
-    deltav[1] = c1dt*conf.a[i][1] + c2dt*Dt*confb[i][1] + xiv[0];
-    deltav[2] = c1dt*conf.a[i][2] + c2dt*Dt*confb[i][2] + xiv[0];
+    deltav[1] = c1dt*conf.a[i][1] + c2dt*Dt*confb[i][1] + xiv[1];
+    deltav[2] = c1dt*conf.a[i][2] + c2dt*Dt*confb[i][2] + xiv[2];
 
     // 3. Solve for lagrange multiplier (first part of rattle)
     double a = v0sq;

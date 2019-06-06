@@ -1,0 +1,13 @@
+
+To compile private, if cloned from gitlab:
+
+autoreconf
+libtoolize
+automake --add-missing
+autoreconf
+
+Then ./configure and make install
+
+If configure fails, it may be that autoconf did not find the macro
+file ax_cxx_compile_stdcxx.m4.  In that case copy it from the base
+directory to the m4 directory.
