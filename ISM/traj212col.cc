@@ -80,7 +80,7 @@ CLoptions::CLoptions() : UtilityCL("tarj212col")
     ;
 
   command_line_options().add_options()
-    ("time-order,T",po::bool_switch(&options.new_12col),"Use alternate format where all particles at a given time are together (as opposed to the traditional particle-order format, where full trajectory for a single particle is written, followed by full trajectory of next particle")
+    ("time-order,t",po::bool_switch(&options.new_12col),"Use alternate format where all particles at a given time are together (as opposed to the traditional particle-order format, where full trajectory for a single particle is written, followed by full trajectory of next particle")
     ;
 
   positional_options().add("ifiles",-1);
