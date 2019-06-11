@@ -22,6 +22,7 @@ OVicsekSimulation::OVicsekSimulation(OVicsekEnvironment& e,
   confb(0)
 {
   NN=new glsim::NeighbourList_subcells(env.cutoff);
+  NN->rebuild(conf);
   rcsq=env.cutoff*env.cutoff;
   env.total_number=conf.N;
   if (!conf.type) {
@@ -124,10 +125,7 @@ void OVicsekSimulation::step()
   }
 
   conf.fold_coordinates();
-  NN->rebuild(conf,env.cutoff);
-  // if (maxdisp<0)
-  // else
-  //   NN->update(maxdisp);
+  NN->update(env.v0);
   env.time_completed+=1;
   env.time_in_run+=1;
   env.run_completed = env.steps_in_run>=env.VSsteps;

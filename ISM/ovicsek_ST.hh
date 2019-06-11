@@ -96,7 +96,7 @@ private:
   glsim::AveVar<false> polAV,polSQAV,AC1AV;
 
   void vnoise(double*);
-  void update_velocities();
+  void update_velocities(),update_velocities_small_system();
   void tune_eta();
 
   glsim::NeighbourList_subcells *NN;

@@ -80,6 +80,14 @@ OVicsek_STSimulation::OVicsek_STSimulation(OVicsek_STEnvironment& e,
   confb(0)
 {
   NN=new glsim::NeighbourList_subcells(env.cutoff);
+  try {
+    NN->rebuild(conf);
+  } catch (const glsim::System_too_small &e) {
+    glsim::logs(glsim::warn) << "Small system, using naive nearest neighbours\n";
+    delete NN;
+    NN=0;
+  }
+
   rcsq=env.cutoff*env.cutoff;
   env.total_number=conf.N;
   if (!conf.type) {
@@ -119,8 +127,10 @@ OVicsek_STSimulation::OVicsek_STSimulation(OVicsek_STEnvironment& e,
 
 OVicsek_STSimulation::~OVicsek_STSimulation()
 {
-  delete ranu,ranphi;
+  delete ranu;
+  delete ranphi;
   delete[] confb;
+  delete NN;
 }
 
 // Modified sign function that returns 1 for val=0
@@ -174,9 +184,35 @@ void OVicsek_STSimulation::update_velocities()
   }
 }
 
+void OVicsek_STSimulation::update_velocities_small_system()
+{
+  memset(confb,0,conf.N*3*sizeof(double));
+
+  for (int i=0; i<conf.N-1; ++i)
+    for (int j=i+1; j<conf.N; ++j) {
+      double dsq=conf.distancesq(conf.r[i],conf.r[j]);
+      if (dsq>rcsq) continue;
+
+      confb[i][0] += conf.v[j][0];
+      confb[i][1] += conf.v[j][1];
+      confb[i][2] += conf.v[j][2];
+      confb[j][0] += conf.v[i][0];
+      confb[j][1] += conf.v[i][1];
+      confb[j][2] += conf.v[i][2];
+  }
+
+  for (int i=0; i<conf.N; ++i) {
+    conf.v[i][0]+=confb[i][0];
+    conf.v[i][1]+=confb[i][1];
+    conf.v[i][2]+=confb[i][2];
+    vnoise(conf.v[i]); // Add noise to the resulting velocity
+  }
+}
+
 void OVicsek_STSimulation::step()
 {
-  update_velocities();
+  if (NN) update_velocities();
+  else update_velocities_small_system();
   for (int i=0; i<conf.N; ++i) {
     conf.r[i][0] += conf.v[i][0];
     conf.r[i][1] += conf.v[i][1];
@@ -184,7 +220,7 @@ void OVicsek_STSimulation::step()
   }
 
   conf.fold_coordinates();
-  NN->rebuild(conf,env.cutoff);
+  if (NN) NN->update(env.v0);
   update_observables();
   if (env.steps_completed % env.tune_step == 0) tune_eta();
   env.time_completed+=1;
