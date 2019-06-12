@@ -25,12 +25,17 @@
 VicsekParameters::VicsekParameters(const char* scope) :
   Parameters(scope)
 {
+ // I_AM_HERE;
   parameter_file_options().add_options()
     ("Vicsek.v0",po::value<double>()->required(),"Modulus of velocity")
     ("Vicsek.chi",po::value<double>()->required(),"Social moment of inertia (m*v0sq), actually in the inertial model rather than Vicsek")
     ("Vicsek.J",po::value<double>()->required(),"Vicseck coupling constant")
     ("Vicsek.metric",po::bool_switch()->required(),"True for metric, false for topological interactions")
     ("Vicsek.cutoff",po::value<double>()->required(),"Cutoff for metric interactions")
+   ("Vicsek.hx",po::value<double>()->default_value(0.),"Magnetic field along the x axis")
+    ("Vicsek.hy",po::value<double>()->default_value(0.),"Magnetic field along the y axis")
+    ("Vicsek.hz",po::value<double>()->default_value(0.),"Magnetic field along the z axis")
+    ("Vicsek.withfield", po::bool_switch()->required(), "True for field, false for not field")
     ;
 }
 
@@ -50,6 +55,10 @@ VicsekInteraction::VicsekInteraction(VicsekParameters &p,
   J=par.value("Vicsek.J").as<double>();
   metric=par.value("Vicsek.metric").as<bool>();
   rc=par.value("Vicsek.cutoff").as<double>();
+  hx=par.value("Vicsek.hx").as<double>(); 
+  hy=par.value("Vicsek.hy").as<double>();
+  hz=par.value("Vicsek.hz").as<double>();
+ withfield=par.value("Vicsek.withfield").as<bool>();
 }
 
 /*
