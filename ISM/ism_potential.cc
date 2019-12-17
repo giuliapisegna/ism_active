@@ -23,6 +23,8 @@ void wmain(int argc, char *argv[])
 
   I_AM_HERE;
 
+  ISMEnvironment  env;
+  VicsekParameters VP;
   glsim::OLconfiguration conf;
   ISMObservable obs(env,conf);
   glsim::Trajectory traj(env,conf);
@@ -68,6 +70,7 @@ I_AM_HERE;
 I_AM_HERE;
   delete inter;
 I_AM_HERE;
+
 
 }
 

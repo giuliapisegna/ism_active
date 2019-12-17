@@ -95,14 +95,81 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
   confb(0)
 {
 
-//inizializzo la posizione del landmark corretta = al centro della scatola
+//proviamo a inizializzare il landmark sul centro di massa del sistema!!
+/*
+double R[3]={0.};
+for(int i=0; i < conf.N; i++){
+	R[0] += conf.r[i][0];
+	R[1] += conf.r[i][1];
+	R[2] += conf.r[i][2];
+}
+
+	R[0] /= conf.N; 
+	R[1] /= conf.N; 
+	R[2] /= conf.N; 
+
+	env.rl[0] =  R[0]; 
+	env.rl[1] =  R[1]; 
+	env.rl[2] =  R[2]; 
+        env.R0 =  R[0]; 
+/*
+//pongo il landmark al centro della scatola*/
 
   env.rl[0] = conf.box_length[0]/2;
   env.rl[1] = conf.box_length[1]/2;
   env.rl[2] = conf.box_length[2]/2;
-  
   env.drl_x = env.A*env.omega;
 
+
+//dobbiamo inizializzare posizioni e accelerazioni, mi serve chi e k che sono nei vicsek parameters, per ora li metto anche nell'environment, poi vediamo meglio li chiamo k2 e chi2
+  env.v0=inter->speed();
+  double k = inter -> stiffness(); 
+//fprintf(stderr, "k %lf \n", k);
+  double m = inter -> social_mass(0);
+
+/*
+  for(int i=0; i < conf.N; i++){
+//fprintf(stderr, "vo %lf \n", env.v0);
+    conf.a[i][0] = -(k/m) *(conf.r[i][0] - env.rl[0]);
+    conf.a[i][1] = -(k/m) *(conf.r[i][1] - env.rl[1]);
+    conf.a[i][2] = -(k/m) *(conf.r[i][2] - env.rl[2]);
+  }
+
+//scelgo un vettore a caso
+  double n[3]={1,1,1};
+  //lo normalizzo
+  n[0] /= sqrt( n[0]*n[0] +n[1]*n[1] +n[2]*n[2] );
+  n[1] /= sqrt( n[0]*n[0] +n[1]*n[1] +n[2]*n[2] );
+  n[2] /= sqrt( n[0]*n[0] +n[1]*n[1] +n[2]*n[2] );
+
+// faccio si' che la velocita'sia perpendicolare alla sua derivata = perpendicolare ad a = perpendicolare ad r)
+ for(int i=0; i < conf.N; i++) {
+ 
+  vprod(conf.v[i], n, conf.a[i]);
+//fprintf(stderr, "velocita %lf  %lf %lf\n", conf.v[i][0] , conf.v[i][1] , conf.v[i][2] );
+//fprintf(stderr, "accc %lf  %lf %lf\n", conf.a[i][0] , conf.a[i][1] , conf.a[i][2] );
+  conf.v[i][0] /= sqrt( conf.v[i][0]*conf.v[i][0]  + conf.v[i][1]*conf.v[i][1]  + conf.v[i][2]*conf.v[i][2]);
+  conf.v[i][1] /= sqrt( conf.v[i][0]*conf.v[i][0]  + conf.v[i][1]*conf.v[i][1]  + conf.v[i][2]*conf.v[i][2]);
+  conf.v[i][2] /= sqrt( conf.v[i][0]*conf.v[i][0]  + conf.v[i][1]*conf.v[i][1]  + conf.v[i][2]*conf.v[i][2]);
+ }
+
+
+//fine della inizializzazione di accelerazione e velocita'*/ 
+
+/*
+//UN'ALTRA INIZIALIZZAZIONE DELLE Ai
+
+
+double p[3];
+
+for(int i = 0; i < conf.N; i++){
+	
+	vprod(p,conf.v[i],conf.r[i]);
+        vprod(conf.a[i],p,conf.v[i]);
+	conf.a[i][0] = conf.a[i][0]*k/(env.v0*env.v0);
+        conf.a[i][1] = conf.a[i][1]*k/(env.v0*env.v0);
+	conf.a[i][2] = conf.a[i][2]*k/(env.v0*env.v0);
+}*/
 
   env.total_number=conf.N;
   env.total_social_mass=0;
@@ -226,6 +293,7 @@ void ISMSimulation::step()
     conf.r[i][1] += conf.v[i][1]*xDt;
     conf.r[i][2] += conf.v[i][2]*xDt;
 
+
     // 2. Delta v w/o rattle corrections
     deltav[0] = c1dt*conf.a[i][0] + c2dt*Dt*confb[i][0] + xiv[0];
     deltav[1] = c1dt*conf.a[i][1] + c2dt*Dt*confb[i][1] + xiv[1];
@@ -284,7 +352,15 @@ void ISMSimulation::step()
     conf.a[i][1] += c2hgamma * conf.v[i][1];
     conf.a[i][2] += c2hgamma * conf.v[i][2];
 
+
+    double s[3];
+    vprod(s, conf.v[i], conf.a[i]);
+  //  fprintf(stderr," sx %lf sy %lf sz %lf \n", s[0],s[1],s[2]);
+
   }
+
+
+  inter->rebuildcell(conf);
 
 }
 
@@ -295,12 +371,14 @@ void ISMSimulation::step()
 
 void ISMSimulation::update_observables()
 {
-  double V[3],S[3];
+
+  double V[3],S[3],R[3];
 
   env.social_kinetic_energy=0;
   env.v0sqave=0;
   memset(env.total_spin,0,3*sizeof(double));
   memset(V,0,3*sizeof(double));
+  memset(R,0,3*sizeof(double));
     
   for (int i=0; i<conf.N; ++i) {
     double vs=modsq(conf.v[i]);
@@ -308,6 +386,9 @@ void ISMSimulation::update_observables()
     V[0]+=conf.v[i][0];
     V[1]+=conf.v[i][1];
     V[2]+=conf.v[i][2];
+    R[0] += conf.r[i][0];
+    R[1] += conf.r[i][1];
+    R[2] += conf.r[i][2];
     env.social_kinetic_energy+=inter->social_mass(conf.type[i])*modsq(conf.a[i]);
     vprod(S,conf.v[i],conf.a[i]);
     S[0]*=inter->social_mass(0);
@@ -317,6 +398,11 @@ void ISMSimulation::update_observables()
     env.total_spin[1]+=S[1];
     env.total_spin[2]+=S[2];
   }
+
+  env.Rcm[0]=R[0]/conf.N; 
+  env.Rcm[1]=R[1]/conf.N; 
+  env.Rcm[2]=R[2]/conf.N; 
+
   env.v0sqave/=conf.N;
   env.polarization=sqrt(modsq(V))/(conf.N*env.v0);
   env.social_kinetic_energy*=0.5;
@@ -329,11 +415,19 @@ void ISMSimulation::log_start_sim()
   char buff[300];
   
   Simulation::log_start_sim();
-  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi   <Stot^2>\n";
 
+  glsim::logs(glsim::info) << "    Step       Time    SocEtot      <vsq>        Phi   <Stot^2>   Kin	Pot	RCMx\n";
+
+/*
   sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e\n",
 	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
-	  env.total_spinsq);
+	  env.total_spinsq);*/
+
+
+  sprintf(buff," Initial            %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
+	  env.total_spinsq, env.social_kinetic_energy, env.social_potential_energy, env.Rcm[0]);
+
   glsim::logs(glsim::info) << buff;
 }
 
@@ -341,10 +435,10 @@ void ISMSimulation::log()
 {
   update_observables();
   static char buff[300];
-  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e\n",
+  sprintf(buff,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e  %10.3e %10.3e %10.3e\n",
 	  env.steps_completed,env.time_completed,
 	  env.social_total_energy/conf.N,env.v0sqave,env.polarization,
-	  env.total_spinsq);
+	  env.total_spinsq, env.social_kinetic_energy, env.social_potential_energy, env.Rcm[0]);
   glsim::logs(glsim::info) << buff;
 }
 
@@ -377,12 +471,12 @@ void ISMObservable::write_header()
 /*
   fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |     (10)| |    (11)| |    (12)| |    (13)| |    (14)| |    (15)| |    (16)| |    (17)||    (18)| |    (19)| |    (20)|\n");
   fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| | Polariz.| |---------- Total spin --------|  |---------- Spin (single conf) ----------||--- Center of mass position --|\n");
-  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz         Phi         Sx         Sy         Sz    Average   Variance        Min        Max    	RCMx	  RCMy	    RCMz \n");*/
+  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz         Phi         Sx         Sy         Sz    Average   Variance        Min        Max    	RCMx	  RCMy	    RCMz \n"); */
 
 
   fprintf(of,"#   (1)| |     (2)| |     (3)| |     (4)| |     (5)| |     (6)| |     (7)| |     (8)| |     (9)| |     (10)| |    (11)| |    (12)| |    (13)| |    (14)| |    (15)| |    (16)| |    (17)||    (18)| |    (19)| |    (20)|\n");
   fprintf(of,"#- Step and time -| |------- Social energy --------| | Av v^2 | |--- Center of mass velocity --| | Polariz.| |---------- Landmark position --------|  |---------- Spin (single conf) ----------||--- Center of mass position --|\n");
-  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz         Phi         Rlx         Rly         Rlz    Average   Variance        Min        Max    	RCMx	  RCMy	    RCMz \n");
+  fprintf(of,"#   Step       Time  Potential    Kinetic      Total  <|v_i|^2>       VCMx       VCMy       VXMz         Phi         Rlx         Rly         Rlz    Average   Variance        Min        Max    	RCMx	  RCMy	    RCMz \n"); 
 
 
 }
@@ -418,6 +512,7 @@ void ISMObservable::update()
   env.v0sqave=0;
   memset(env.total_spin,0,3*sizeof(double));
   memset(V,0,3*sizeof(double));
+  memset(R,0,3*sizeof(double));
   env.spinsqavar.clear();
   
   for (int i=0; i<conf.N; ++i) {

@@ -66,6 +66,8 @@ public:
   double rl[3];
 //derivatime in time of this position
   double drl_x;
+//modifica!!
+ //double R0;
 
 protected:
   void    init_local() {SimEnvironment::init_local(); common_init();}

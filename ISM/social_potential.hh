@@ -16,6 +16,9 @@
 #include "3dvecs.hh"
 #include <cmath> 
 
+#include <stdio.h>
+#include <stdlib.h>
+
 /*****************************************************************************
  * 
  * SocialInteracions
@@ -30,12 +33,18 @@ public:
   virtual double social_mass(short type) const=0;
   virtual double social_potential_energy_and_force(glsim::OLconfiguration&,double b[][3], double rl[3], double drl_x)=0;
   virtual double social_potential_energy_and_acceleration(glsim::OLconfiguration&,double b[][3], double rl[3], double drl_x)=0;
+  virtual void rebuildcell(glsim::OLconfiguration&,double maxdisp=-1);
 } ;
+
+inline void SocialInteractions::rebuildcell(glsim::OLconfiguration& conf,double maxdisp)
+{
+  //conf.fold_coordinates();
+}
 
 
 /*****************************************************************************
  *
- * Vicsek with external potential
+ * Vicsek with external potential on the positions
  * 
  */
 
@@ -79,6 +88,7 @@ public:
 			  NeighboursT *NN=0);
   double social_potential_energy_and_force(glsim::OLconfiguration&, double b[][3], double rl[3], double drl_x);
   double social_potential_energy_and_acceleration(glsim::OLconfiguration&, double b[][3], double rl[3], double drl_x);
+  void   rebuildcell(glsim::OLconfiguration&,double maxdisp=-1);
 
 private:
   double implement_social_interactions_wpotential(glsim::OLconfiguration&, double b[][3], double rl[3], double drl_x, double ffac, double ffpp);
@@ -105,6 +115,19 @@ MetricVicsekInteractionwPotential<NeighboursT>::MetricVicsekInteractionwPotentia
   }
   NN->rebuild(c,rc);
 }
+
+template <typename NeighboursT>
+inline void MetricVicsekInteractionwPotential<NeighboursT>::
+rebuildcell(glsim::OLconfiguration& conf,double maxdisp)
+{
+//Non faccio il folding perche' sono senza PBC
+ // conf.fold_coordinates();
+  if (maxdisp<0)
+    NN->rebuild(conf,rc);
+  else
+    NN->update(maxdisp);
+}
+
 
 /*
    This computes the social interactions, but only for the metric case and in the case without magnetic field.
@@ -166,6 +189,7 @@ implement_social_interactions_wpotential(glsim::OLconfiguration &conf, double b[
 
   }
  
+/* // pensiamo sia sbagliato
       for(int i=0; i < conf.N; i++){
 
 	 E += 0.5*k*((conf.r[i][0] - rl[0])*(conf.r[i][0] - rl[0])+ (conf.r[i][1] - rl[1])*(conf.r[i][1] - rl[1])+(conf.r[i][2] - rl[2])*(conf.r[i][2] - rl[2])); 
@@ -175,6 +199,36 @@ implement_social_interactions_wpotential(glsim::OLconfiguration &conf, double b[
 	 b[i][1] += ffpp*(-conf.v[i][1]);
 	 b[i][2] += ffpp*(-conf.v[i][2]); 
 	 
+       }
+
+	//fprintf(stderr, "forza su x = %lf e k = %lf \n",    b[i][0], k);
+	 b[i][1] += ffpp*(-conf.v[i][1]);
+	 b[i][2] += ffpp*(-conf.v[i][2]); 
+	 
+       }*/
+
+
+ for(int i=0; i < conf.N; i++){
+
+	 E += 0.5*k*((conf.r[i][0] - rl[0])*(conf.r[i][0] - rl[0])+ (conf.r[i][1] - rl[1])*(conf.r[i][1] - rl[1])+(conf.r[i][2] - rl[2])*(conf.r[i][2] - rl[2])); 
+
+
+         b[i][0] +=  -ffpp*(conf.r[i][0]- rl[0]);
+         b[i][1] +=  -ffpp*(conf.r[i][1]- rl[1]); 
+         b[i][2] +=  - ffpp*(conf.r[i][2]- rl[2]);
+	//fprintf(stderr, "forza su x = %lf e k = %lf \n",    b[i][0], k);
+
+//TERZA PROVA!!
+
+//No, peggio di tutto
+/*	 E += 0.5*k*((conf.v[i][0])*(conf.v[i][0])+ (conf.v[i][1])*(conf.v[i][1])+(conf.v[i][2])*(conf.v[i][2])); 
+
+
+         b[i][0] +=  ffpp*(conf.a[i][0]);
+         b[i][1] +=  ffpp*(conf.a[i][1]); 
+         b[i][2] +=  ffpp*(conf.a[i][2]);
+	//fprintf(stderr, "forza su x = %lf e k = %lf \n",    b[i][0], k);*/
+ 
        }
 
  return E;
