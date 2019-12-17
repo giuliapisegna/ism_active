@@ -9,13 +9,15 @@
 EXTRA_DIST = social.hh isi.hh 3dvecs.hh vici.hh ovicsek.hh
 
 bin_PROGRAMS = ism ism-pl ism_create_conf vicsek ovicsek ovicsek_st traj212col examine	\
-               ck cknew ckiso ckt cktiso cko polarization tcorr1
+               ck cknew ckiso ckt cktiso cko polarization tcorr1 ism_potential
 
 ism_SOURCES = ism.cc isi.cc social.cc
 
 ism_pl_SOURCES = ism-pl.cc isi.cc social.cc
 
 ism_create_conf_SOURCES = ism_create_conf.cc
+
+ism_potential_SOURCES = ism_potential.cc isi_potential.cc social_potential.cc
 
 vicsek_SOURCES = vicsek.cc vici.cc social.cc
 
