@@ -62,7 +62,9 @@ OVicsekSimulation::OVicsekSimulation(OVicsekEnvironment& e,
 
 OVicsekSimulation::~OVicsekSimulation()
 {
-  delete ranz,ranphi;
+  delete NN;
+  delete ranz;
+  delete ranphi;
   delete[] confb;
 }
 
@@ -71,18 +73,26 @@ template <typename T> T ssg(T val) {
     return (T(0) <= val) - (val < T(0));
 }
 
+// takes vector and replaces it by a vector of modulus env.v0
+// randomly rotated within the spherical cone of amplitued 4 pi eta and
+// centered in the original vector
 void OVicsekSimulation::vnoise(double v[])
 {
   double u1[3],u2[3];
 
+  // build two vectors u1 and u2 such that u1,u2,v are a triad to define cartesian axes
   u1[0]=-ssg(v[0])*v[2];
   u1[1]=-ssg(v[1])*v[2];
   u1[2]=ssg(v[0])*v[0] + ssg(v[1])*v[1];
   normalize(v);
   normalize(u1);
-  vprod(u2,v,u1);
-  double z=(*ranz)();
-  double phi=(*ranphi)();
+  vprod(u2,v,u1);  // u2 = v cross u1
+
+  double z=(*ranz)();     // random between  1-2 eta and 1
+  double phi=(*ranphi)(); // random between 0 and 2 pi
+
+  // now build the desired vector using cilindrical coordinates with (u1,u2) as the
+  // xy plane and v as z axis, go back to the cartesian system (u1,u2,v) and return
   v[0]=env.v0*(sqrt(1-z*z)*cos(phi)*u1[0] + sqrt(1-z*z)*sin(phi)*u2[0] + z*v[0]);
   v[1]=env.v0*(sqrt(1-z*z)*cos(phi)*u1[1] + sqrt(1-z*z)*sin(phi)*u2[1] + z*v[1]);
   v[2]=env.v0*(sqrt(1-z*z)*cos(phi)*u1[2] + sqrt(1-z*z)*sin(phi)*u2[2] + z*v[2]);

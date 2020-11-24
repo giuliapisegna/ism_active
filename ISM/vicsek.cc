@@ -67,7 +67,7 @@ void Energy_histogram::observe()
 Energy_histogram::~Energy_histogram()
 {
   if (!of) return;
-  fprintf(of,"# Energy histogram (%d outliers)\n",histo->outliers());
+  fprintf(of,"# Energy histogram (%ld outliers)\n",histo->outliers());
   std::ostringstream o;
   histo->probability_output();
   o << *histo;

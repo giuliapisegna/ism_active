@@ -153,14 +153,14 @@ ISMSimulation::ISMSimulation(ISMEnvironment& e,glsim::OLconfiguration &c,VicsekI
     rho=(1-exi)*(1-exi)/sqrt( (1-exi*exi)*(3*xidt-3+4*exi-exi*exi) );
   }
   sa=(env.temperature/mass)*(1-exi*exi);
-  if (sa<=0) throw glsim::Runtime_error("Error computing variance of noise (got negative)",HERE);
+  if (sa<0) throw glsim::Runtime_error("Error computing variance of noise (got negative)",HERE);
   sa=sqrt(sa);
   if (etasv0<1e-3) {
     sv=env.temperature*Dt*Dt*Dt*etasv0*(2./3.-0.5*xidt)/(mass*mass);
   } else {
     sv=(env.temperature/etasv0)*(2*Dt-(3-4*exi+exi*exi)/xi);
   }
-  if (sv<=0) throw glsim::Runtime_error("Error computing variance of noise (got negative)",HERE);
+  if (sv<0) throw glsim::Runtime_error("Error computing variance of noise (got negative)",HERE);
   sv=sqrt(sv);
   noise=new glsim::BivariateGaussian_distribution(sv,sa,rho);
   

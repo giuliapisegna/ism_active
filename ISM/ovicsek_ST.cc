@@ -342,7 +342,7 @@ void OVicsek_STObservable::observe()
 {
   update();
   double Ntimessteps=conf.N*env.steps_completed;
-  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10d\n",
+  fprintf(of,"%8ld %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %10ld\n",
 	  env.steps_completed,env.time_completed,
 	  env.v0sqave,env.Vcm[0],env.Vcm[1],env.Vcm[2],
 	  env.polarization,env.polprev,env.polarizationAveSQ,env.polarizationVar,env.AC1,env.eta,

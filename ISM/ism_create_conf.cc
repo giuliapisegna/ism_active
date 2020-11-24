@@ -60,7 +60,7 @@ void random_positions(glsim::OLconfiguration &conf,scomp &SC)
 
   int i;
   conf.id=new short[conf.N];
-  for (i=0; i<conf.N; conf.id[i]=i++) ;
+  for (i=0; i<conf.N; ++i) conf.id[i]=i;
   conf.type=new short[conf.N];
   for (int j=0; j<SC.N; ++j)
     conf.type[j]=0;
